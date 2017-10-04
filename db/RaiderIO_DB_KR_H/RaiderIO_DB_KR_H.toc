@@ -2,7 +2,6 @@
 ## Title: RaiderIO - Korea - Horde
 ## Notes: Enable the region and faction you want to load into RaiderIO for the selected character.
 ## Author: RaiderIO, Vladinator
-## Version: 7.2.5 (@file-date-iso@)
 ## Dependencies: RaiderIO
 ## DefaultState: disabled
 ## X-Region: Korea

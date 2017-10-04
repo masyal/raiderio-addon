@@ -8,11 +8,19 @@ local profileCache = {}
 addonConfig.showTooltipSpacing = true
 
 -- constants
+local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local FACTION = {
 	["Alliance"] = 1,
 	["Horde"] = 2,
 	[1] = "Alliance",
 	[2] = "Horde",
+}
+local SCORES = {
+	[1] = 3000,
+	[2] = 2400,
+	[3] = 1800,
+	[4] = 1400,
+	[5] = 1000
 }
 
 -- session constants
@@ -211,6 +219,11 @@ function addon:GetProviderData(name, realm, faction)
 	end
 end
 
+-- round scores up to the closest 100
+function addon:RoundScore(score)
+	return floor(score/100+0.5)*100
+end
+
 -- caches the profile table and returns one using keys
 function addon:CacheProviderData(provider, name, realm, profile)
 	local cache = profileCache[profile]
@@ -227,11 +240,11 @@ function addon:CacheProviderData(provider, name, realm, profile)
 		name = name,
 		realm = realm,
 		-- data from Raider.IO
-		allScore = profile[1],
-		tankScore = profile[2],
-		dpsScore = profile[3],
-		healScore = profile[4],
-		prevAllScore = profile[5]
+		allScore = addon:RoundScore(profile[1]),
+		tankScore = addon:RoundScore(profile[2]),
+		dpsScore = addon:RoundScore(profile[3]),
+		healScore = addon:RoundScore(profile[4]),
+		prevAllScore = addon:RoundScore(profile[5])
 	}
 	-- store it in the profile cache
 	profileCache[profile] = cache
@@ -277,6 +290,10 @@ end
 function addon:GetScore(arg1, arg2, forceFaction)
 	local name, realm, unit = addon:GetNameAndRealm(arg1, arg2)
 	if name and realm then
+		-- no need to lookup lowbies for a score
+		if unit and (UnitLevel(unit) or 0) < MAX_LEVEL then
+			return
+		end
 		realm = realm:lower():gsub("[%s%.%,%-%_%'%\"]", "") -- DEBUG: DB needs to use real realm names instead of wanna-be-slugs
 		return addon:GetProviderData(name, realm, type(forceFaction) == "number" and forceFaction or addon:GetFaction(unit))
 	end
@@ -286,15 +303,15 @@ end
 function addon:GetScoreColor(score)
 	local r, g, b = 1, .5, .5
 	if type(score) == "number" then
-		if score >= 3000 then
+		if score >= SCORES[1] then
 			r, g, b = GetItemQualityColor(5)
-		elseif score >= 2400 then
+		elseif score >= SCORES[2] then
 			r, g, b = GetItemQualityColor(4)
-		elseif score >= 1800 then
+		elseif score >= SCORES[3] then
 			r, g, b = GetItemQualityColor(3)
-		elseif score >= 1400 then
+		elseif score >= SCORES[4] then
 			r, g, b = GetItemQualityColor(2)
-		elseif score >= 1000 then
+		elseif score >= SCORES[5] then
 			r, g, b = GetItemQualityColor(1)
 		else
 			r, g, b = GetItemQualityColor(0)

@@ -1,5 +1,6 @@
 package-as: RaiderIO
 enable-nolib-creation: no
+
 move-folders:
 	RaiderIO/db/RaiderIO_DB_EU_A: RaiderIO_DB_EU_A
 	RaiderIO/db/RaiderIO_DB_EU_H: RaiderIO_DB_EU_H
@@ -9,5 +10,6 @@ move-folders:
 	RaiderIO/db/RaiderIO_DB_TW_H: RaiderIO_DB_TW_H
 	RaiderIO/db/RaiderIO_DB_US_A: RaiderIO_DB_US_A
 	RaiderIO/db/RaiderIO_DB_US_H: RaiderIO_DB_US_H
+
 ignore:
-	RaiderIO/db/RaiderIO_DB.bat
+	- db/RaiderIO_DB.bat

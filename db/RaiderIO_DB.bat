@@ -1,7 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set toc_version=7.2.5
 set toc_interface=70200
 set toc_author=RaiderIO, Vladinator
 set toc_addon=RaiderIO
@@ -38,8 +37,7 @@ for %%r in (
 		echo ## Interface: !toc_interface!>"!f!"
 		echo ## Title: !toc_addon! - !r2! - !f2!>>"!f!"
 		echo ## Notes: Enable the region and faction you want to load into !toc_addon! for the selected character.>>"!f!"
-		echo ## Author: RaiderIO, Vladinator>>"!f!"
-		echo ## Version: !toc_version! ^(^@file-date-iso^@^)>>"!f!"
+		echo ## Author: !toc_author!>>"!f!"
 		echo ## Dependencies: !toc_addon!>>"!f!"
 		echo ## DefaultState: disabled>>"!f!"
 		echo ## X-Region: !r2!>>"!f!"

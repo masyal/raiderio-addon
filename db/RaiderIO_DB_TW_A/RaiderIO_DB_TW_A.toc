@@ -1,0 +1,10 @@
+## Interface: 70200
+## Title: RaiderIO - Taiwan - Alliance
+## Notes: Enable the region and faction you want to load into RaiderIO for the selected character.
+## Author: RaiderIO, Vladinator
+## Version: 7.2.5 (@file-date-iso@)
+## Dependencies: RaiderIO
+## DefaultState: disabled
+## X-Region: Taiwan
+## X-Faction: Alliance
+../RaiderIO/db/db_tw_alliance.lua

@@ -1,0 +1,7 @@
+## Interface: 70200
+## Title: RaiderIO
+## Notes: Shows Raider.IO Mythic+ Score in-game. Databases are updated nightly.
+## Author: RaiderIO, Vladinator
+## Version: 7.2.5 (@project-version@)
+## SavedVariables: RaiderIO_Config
+core.lua

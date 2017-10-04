@@ -1,0 +1,60 @@
+@echo off
+setlocal enabledelayedexpansion
+
+set toc_version=7.2.5
+set toc_interface=70200
+set toc_author=RaiderIO, Vladinator
+set toc_addon=RaiderIO
+
+for %%r in (
+	"EU	Europe"
+	"KR	Korea"
+	"TW	Taiwan"
+	"US	US & NA"
+) do (
+	set r=%%r
+	set r1=!r:~1,2!
+	set r2=!r:~4,-1!
+
+	for %%f in (
+		"A	Alliance"
+		"H	Horde"
+	) do (
+		set f=%%f
+		set f1=!f:~1,1!
+		set f2=!f:~3,-1!
+
+		set d=.\RaiderIO_DB_!r1!_!f1!
+		set f=.\!d!\!d!.toc
+
+		set lr=!r1!
+		set lf=!f2!
+		call :LoCase lr
+		call :LoCase lf
+
+		rmdir /s /q "!d!"
+		mkdir "!d!"
+
+		echo ## Interface: !toc_interface!>"!f!"
+		echo ## Title: !toc_addon! - !r2! - !f2!>>"!f!"
+		echo ## Notes: Enable the region and faction you want to load into !toc_addon! for the selected character.>>"!f!"
+		echo ## Author: RaiderIO, Vladinator>>"!f!"
+		echo ## Version: !toc_version! ^(^@file-date-iso^@^)>>"!f!"
+		echo ## Dependencies: !toc_addon!>>"!f!"
+		echo ## DefaultState: disabled>>"!f!"
+		echo ## X-Region: !r2!>>"!f!"
+		echo ## X-Faction: !f2!>>"!f!"
+		echo ../!toc_addon!/db/db_!lr!_!lf!.lua>>"!f!"
+	)
+)
+goto end
+
+REM http://www.robvanderwoude.com/battech_convertcase.php
+:LoCase
+:: Subroutine to convert a variable VALUE to all lower case.
+:: The argument for this subroutine is the variable NAME.
+FOR %%i IN ("A=a" "B=b" "C=c" "D=d" "E=e" "F=f" "G=g" "H=h" "I=i" "J=j" "K=k" "L=l" "M=m" "N=n" "O=o" "P=p" "Q=q" "R=r" "S=s" "T=t" "U=u" "V=v" "W=w" "X=x" "Y=y" "Z=z") DO CALL SET "%1=%%%1:%%~i%%"
+GOTO:EOF
+
+:end
+pause

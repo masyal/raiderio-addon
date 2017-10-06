@@ -15,15 +15,22 @@ local UnitIsPlayer = UnitIsPlayer
 local UnitLevel = UnitLevel
 local UnitName = UnitName
 
--- core tables
-local addonName = ...
-local addonConfig = {}
+-- core
+local addonName, ns = ...
 local dataProviders = {}
 local uiHooks = {}
 local profileCache = {}
 
 -- default config
-addonConfig.showTooltipSpacing = true
+local addonConfig = {
+	enableUnitTooltips = true,
+	enableLFGTooltips = true,
+	enableWhoTooltips = true,
+	enableWhoMessages = true,
+	enableGuildTooltips = true,
+	enableKeystoneTooltips = true,
+	showTooltipSpacing = true,
+}
 
 -- constants
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
@@ -48,6 +55,13 @@ local ROLE_COMBOS = {
 	TANK_DPS = bit.bor(ROLE_MASK.TANK, ROLE_MASK.DPS),
 	TANK_HEALER_DPS = bit.bor(ROLE_MASK.TANK, ROLE_MASK.HEALER, ROLE_MASK.DPS),
 	HEALER_DPS = bit.bor(ROLE_MASK.HEALER, ROLE_MASK.DPS),
+}
+local REGIONS = {
+	"us",
+	"kr",
+	"eu",
+	"tw",
+	"cn"
 }
 
 -- session constants
@@ -339,6 +353,9 @@ do
 	-- GameTooltip
 	uiHooks[#uiHooks + 1] = function()
 		GameTooltip:HookScript("OnTooltipSetUnit", function(self)
+			if addonConfig.enableUnitTooltips == false then
+				return
+			end
 			AppendGameTooltip(self, select(2, self:GetUnit()), nil)
 		end)
 		return 1
@@ -347,9 +364,28 @@ do
 	-- LFG
 	uiHooks[#uiHooks + 1] = function()
 		if _G.LFGListApplicationViewerScrollFrameButton1 then
+			_G.StaticPopupDialogs["RAIDERIO_COPY_URL"] = {
+				text = "Copy the URL below by using CTRL+C and CTRL+V it in your browser.",
+				button1 = CLOSE,
+				hasEditBox = true,
+				whileDead = true,
+				hideOnEscape = true
+				timeout = 0,
+				editBoxWidth = 256,
+				OnShow = function(self)
+					self.editBox:SetText(self.data)
+					self.editBox:HighlightText()
+				end,
+				EditBoxOnEscapePressed = function(self)
+					self:GetParent():Hide()
+				end
+			}
 			local hooked = {}
 			local OnEnter, OnLeave
-			function OnEnter(self)
+			local function OnEnter(self)
+				if addonConfig.enableLFGTooltips == false then
+					return
+				end
 				if self.applicantID and self.Members then
 					for i = 1, #self.Members do
 						local b = self.Members[i]
@@ -370,15 +406,33 @@ do
 					end
 				end
 			end
-			function OnLeave(self)
+			local function OnLeave(self)
 				if self.applicantID or self.memberIdx then
 					GameTooltip:Hide()
+				end
+			end
+			local function OnDoubleClick(self, button)
+				if button == "LeftButton" then
+					local _, _, _, _, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(self.resultID)
+					if leaderName then
+						local name, realm = GetNameAndRealm(leaderName)
+						local region = REGIONS[GetCurrentRegion()]
+						local url = format("https://raider.io/characters/%s/%s/%s", region, realm, name)
+						if IsModifiedClick("CHATLINK") then
+							local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
+							editBox:HighlightText()
+						else
+							StaticPopup_Show("RAIDERIO_COPY_URL", nil, nil, url)
+						end
+					end
 				end
 			end
 			for i = 1, 14 do
 				local b = _G["LFGListApplicationViewerScrollFrameButton" .. i]
 				b:HookScript("OnEnter", OnEnter)
 				b:HookScript("OnLeave", OnLeave)
+				b:HookScript("OnDoubleClick", OnDoubleClick)
+				b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 			end
 			return 1
 		end
@@ -387,6 +441,9 @@ do
 	-- WhoFrame
 	uiHooks[#uiHooks + 1] = function()
 		local function OnEnter(self)
+			if addonConfig.enableWhoTooltips == false then
+				return
+			end
 			if self.whoIndex then
 				local name, guild, level, race, class, zone, classFileName = GetWhoInfo(self.whoIndex)
 				if name then
@@ -417,6 +474,9 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.GuildFrame then
 			local function OnEnter(self)
+				if addonConfig.enableGuildTooltips == false then
+					return
+				end
 				if self.guildIndex then
 					local fullName = GetGuildRosterInfo(self.guildIndex)
 					if fullName then
@@ -441,7 +501,7 @@ do
 		end
 	end
 
-	-- ChatFrame
+	-- ChatFrame (Who Results)
 	uiHooks[#uiHooks + 1] = function()
 		local function pattern(pattern)
 			pattern = pattern:gsub("%%", "%%%%")
@@ -500,7 +560,7 @@ do
 			return text
 		end
 		local function filter(self, event, text, ...)
-			if event == "CHAT_MSG_SYSTEM" then
+			if addonConfig.enableWhoMessages ~= false and event == "CHAT_MSG_SYSTEM" then
 				nameLink, name, level, race, class, guild, zone = text:match(FORMAT_GUILD)
 				if not zone then
 					guild = nil
@@ -532,6 +592,9 @@ do
 	--[=[
 	uiHooks[#uiHooks + 1] = function()
 		local function OnSetItem(tooltip)
+			if addonConfig.enableKeystoneTooltips == false then
+				return
+			end
 			local _, link = tooltip:GetItem()
 			if type(link) == "string" and link:find("keystone:", nil, true) then
 				local inst, lvl, a1, a2, a3 = link:match("keystone:(%d+):(%d+):(%d+):(%d+):(%d+)")

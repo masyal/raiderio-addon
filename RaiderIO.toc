@@ -5,3 +5,4 @@
 ## Version: 7.2.5 (@project-version@)
 ## SavedVariables: RaiderIO_Config
 core.lua
+config.lua

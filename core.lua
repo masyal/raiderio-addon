@@ -384,6 +384,35 @@ do
 		end
 	end
 
+	-- WhoFrame
+	uiHooks[#uiHooks + 1] = function()
+		local function OnEnter(self)
+			if self.whoIndex then
+				local name, guild, level, race, class, zone, classFileName = GetWhoInfo(self.whoIndex)
+				if name then
+					local hasOwner = GameTooltip:GetOwner()
+					if not hasOwner then
+						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
+					end
+					if not AppendGameTooltip(GameTooltip, name, not hasOwner, true) and not hasOwner then
+						GameTooltip:Hide()
+					end
+				end
+			end
+		end
+		local function OnLeave(self)
+			if self.whoIndex then
+				GameTooltip:Hide()
+			end
+		end
+		for i = 1, 17 do
+			local b = _G["WhoFrameButton" .. i]
+			b:HookScript("OnEnter", OnEnter)
+			b:HookScript("OnLeave", OnLeave)
+		end
+		return 1
+	end
+
 	-- Blizzard_GuildUI
 	uiHooks[#uiHooks + 1] = function()
 		if _G.GuildFrame then
@@ -410,6 +439,93 @@ do
 			end
 			return 1
 		end
+	end
+
+	-- ChatFrame
+	uiHooks[#uiHooks + 1] = function()
+		local function pattern(pattern)
+			pattern = pattern:gsub("%%", "%%%%")
+			pattern = pattern:gsub("%.", "%%%.")
+			pattern = pattern:gsub("%?", "%%%?")
+			pattern = pattern:gsub("%+", "%%%+")
+			pattern = pattern:gsub("%-", "%%%-")
+			pattern = pattern:gsub("%(", "%%%(")
+			pattern = pattern:gsub("%)", "%%%)")
+			pattern = pattern:gsub("%[", "%%%[")
+			pattern = pattern:gsub("%]", "%%%]")
+			pattern = pattern:gsub("%%%%s", "(.-)")
+			pattern = pattern:gsub("%%%%d", "(%%d+)")
+			pattern = pattern:gsub("%%%%%%[%d%.%,]+f", "([%%d%%.%%,]+)")
+			return pattern
+		end
+		local FORMAT_GUILD = "^" .. pattern(WHO_LIST_GUILD_FORMAT) .. "$"
+		local FORMAT = "^" .. pattern(WHO_LIST_FORMAT) .. "$"
+		local nameLink, name, level, race, class, guild, zone
+		local repl, text, profile
+		local function score(profile)
+			text = ""
+			-- assume players primary role
+			local primaryRole = "DPS "
+			if profile.primaryRole == ROLE_MASK.TANK then
+				primaryRole = "Tank "
+			elseif profile.primaryRole == ROLE_MASK.HEALER then
+				primaryRole = "Healer "
+			end
+			-- draw differently if the player has multiple roles or not
+			if profile.isMultiRole then
+				-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
+				if profile.prevAllScore > 0 and profile.prevAllScore/2 > profile.allScore then
+					text = text .. "Mythic+ Score " .. profile.prevAllScore .. " "
+				elseif profile.allScore > 0 or profile.isMultiRole then
+					text = text .. "Mythic+ Score " .. profile.allScore .. " "
+				end
+				-- show tank, healer and dps scores
+				if profile.tankScore > 0 then
+					text = text .. "Tank " .. profile.tankScore .. " "
+				end
+				if profile.healScore > 0 then
+					text = text .. "Healer " .. profile.healScore .. " "
+				end
+				if profile.dpsScore > 0 then
+					text = text .. "DPS " .. profile.dpsScore .. " "
+				end
+			else
+				-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
+				if profile.prevAllScore > 0 and profile.prevAllScore/2 > profile.allScore then
+					text = text .. "Mythic+ " .. primaryRole .. "Score " .. profile.prevAllScore .. " "
+				elseif profile.allScore > 0 or profile.isMultiRole then
+					text = text .. "Mythic+ " .. primaryRole .. "Score " .. profile.allScore .. " "
+				end
+			end
+			return text
+		end
+		local function filter(self, event, text, ...)
+			if event == "CHAT_MSG_SYSTEM" then
+				nameLink, name, level, race, class, guild, zone = text:match(FORMAT_GUILD)
+				if not zone then
+					guild = nil
+					nameLink, name, level, race, class, zone = text:match(FORMAT)
+				end
+				if level then
+					level = tonumber(level) or 0
+					if level >= MAX_LEVEL then
+						if guild then
+							repl = format(WHO_LIST_GUILD_FORMAT, nameLink, name, level, race, class, guild, zone)
+						else
+							repl = format(WHO_LIST_FORMAT, nameLink, name, level, race, class, zone)
+						end
+						profile = GetScore(nameLink)
+						if profile then
+							repl = repl .. " - RaiderIO " .. score(profile)
+						end
+						return false, repl, ...
+					end
+				end
+			end
+			return false
+		end
+		ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", filter)
+		return 1
 	end
 
 	-- Keystone GameTooltip + ItemRefTooltip

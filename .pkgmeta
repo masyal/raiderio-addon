@@ -13,3 +13,4 @@ move-folders:
 
 ignore:
 	- db/RaiderIO_DB.bat
+	- build.sh

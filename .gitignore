@@ -33,3 +33,6 @@ nppBackup/
 
 # Misc
 *.ignore
+
+# Build artifacts
+build

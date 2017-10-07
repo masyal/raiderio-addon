@@ -120,16 +120,20 @@ local function GetNameAndRealm(arg1, arg2)
 			name, realm = UnitName(arg1)
 			realm = realm and realm ~= "" and realm or GetRealmName()
 		end
-	elseif type(arg1) == "string" then
+	elseif type(arg1) == "string" and arg1 ~= "" then
 		if arg1:find("-", nil, true) then
 			name, realm = ("-"):split(arg1)
+			realm = ns:GetRealmFromSlug(realm) or realm -- slug to realm conversion
 		else
 			name = arg1 -- assume this is the name
 		end
-		if (not realm or realm == "") and type(arg2) == "string" then
-			realm = arg2
-		else
-			realm = GetRealmName() -- assume they are on our realm
+		if not realm or realm == "" then
+			if type(arg2) == "string" and arg2 ~= "" then
+				realm = arg2
+				realm = ns:GetRealmFromSlug(realm) or realm -- slug to realm conversion
+			else
+				realm = GetRealmName() -- assume they are on our realm
+			end
 		end
 	end
 	return name, realm, unit
@@ -356,7 +360,7 @@ do
 			if addonConfig.enableUnitTooltips == false then
 				return
 			end
-			AppendGameTooltip(self, select(2, self:GetUnit()), nil)
+			AppendGameTooltip(self, (select(2, self:GetUnit())))
 		end)
 		return 1
 	end
@@ -365,24 +369,37 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.LFGListApplicationViewerScrollFrameButton1 then
 			_G.StaticPopupDialogs["RAIDERIO_COPY_URL"] = {
-				text = "Copy the URL below by using CTRL+C and CTRL+V it in your browser.",
-				button1 = CLOSE,
+				text = "URL : %s",
+				button2 = CLOSE,
 				hasEditBox = true,
-				whileDead = true,
-				hideOnEscape = true
+				hasWideEditBox = true,
+				editBoxWidth = 350,
+				preferredIndex = 3,
 				timeout = 0,
-				editBoxWidth = 256,
+				whileDead = true,
+				hideOnEscape = true,
 				OnShow = function(self)
-					self.editBox:SetText(self.data)
-					self.editBox:HighlightText()
+					self:SetWidth(420)
+					local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"]
+					editBox:SetText(self.text.text_arg1)
+					editBox:SetFocus()
+					editBox:HighlightText(false)
+					local button = _G[self:GetName() .. "Button2"]
+					button:ClearAllPoints()
+					button:SetWidth(200)
+					button:SetPoint("CENTER", editBox, "CENTER", 0, -30)
 				end,
 				EditBoxOnEscapePressed = function(self)
 					self:GetParent():Hide()
-				end
+				end,
+				OnHide = function() end,
+				OnAccept = function() end,
+				OnCancel = function() end
 			}
 			local hooked = {}
-			local OnEnter, OnLeave
-			local function OnEnter(self)
+			local OnEnter, OnLeave, OnDoubleClick
+			-- application queue
+			function OnEnter(self)
 				if addonConfig.enableLFGTooltips == false then
 					return
 				end
@@ -393,6 +410,8 @@ do
 							hooked[b] = 1
 							b:HookScript("OnEnter", OnEnter)
 							b:HookScript("OnLeave", OnLeave)
+							b:HookScript("OnDoubleClick", OnDoubleClick)
+							b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 						end
 					end
 				elseif self.memberIdx then
@@ -406,24 +425,30 @@ do
 					end
 				end
 			end
-			local function OnLeave(self)
+			function OnLeave(self)
 				if self.applicantID or self.memberIdx then
 					GameTooltip:Hide()
 				end
 			end
-			local function OnDoubleClick(self, button)
+			function OnDoubleClick(self, button)
 				if button == "LeftButton" then
-					local _, _, _, _, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(self.resultID)
-					if leaderName then
-						local name, realm = GetNameAndRealm(leaderName)
+					local _, fullName
+					if self.resultID then
+						_, _, _, _, _, _, _, _, _, _, _, _, fullName = C_LFGList.GetSearchResultInfo(self.resultID)
+					elseif self.memberIdx then
+						fullName = C_LFGList.GetApplicantMemberInfo(self:GetParent().applicantID, self.memberIdx)
+					end
+					if fullName then
+						local name, realm = GetNameAndRealm(fullName)
 						local region = REGIONS[GetCurrentRegion()]
 						local url = format("https://raider.io/characters/%s/%s/%s", region, realm, name)
 						if IsModifiedClick("CHATLINK") then
 							local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
 							editBox:HighlightText()
 						else
-							StaticPopup_Show("RAIDERIO_COPY_URL", nil, nil, url)
+							StaticPopup_Show("RAIDERIO_COPY_URL", url)
 						end
+						CloseDropDownMenus()
 					end
 				end
 			end
@@ -433,6 +458,26 @@ do
 				b:HookScript("OnLeave", OnLeave)
 				b:HookScript("OnDoubleClick", OnDoubleClick)
 				b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+			end
+			-- search results
+			local function SetSearchEntryTooltip(tooltip, resultID, autoAcceptOption)
+				local _, _, _, _, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
+				if leaderName then
+					AppendGameTooltip(tooltip, leaderName, false, true)
+				end
+			end
+			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
+			for i = 1, 10 do
+				local b = _G["LFGListSearchPanelScrollFrameButton" .. i]
+				b:HookScript("OnDoubleClick", OnDoubleClick)
+				b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+			end
+			-- UnempoweredCover blocking removal
+			do
+				local f = LFGListFrame.ApplicationViewer.UnempoweredCover
+				f:EnableMouse(false)
+				f:EnableMouseWheel(false)
+				f:SetToplevel(false)
 			end
 			return 1
 		end

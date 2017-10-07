@@ -4,5 +4,6 @@
 ## Author: RaiderIO, Vladinator
 ## Version: 7.2.5 (@project-version@)
 ## SavedVariables: RaiderIO_Config
+constants.lua
 core.lua
 config.lua

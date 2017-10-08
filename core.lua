@@ -2,17 +2,18 @@ local addonName, ns = ...
 local dataProviders = {}
 local uiHooks = {}
 local profileCache = {}
+local configFrame
 
 -- default config
 local addonConfig = {
 	enableUnitTooltips = true,
 	enableLFGTooltips = true,
-	enableWhoTooltips = true,
-	enableWhoMessages = true,
-	enableGuildTooltips = true,
-	enableKeystoneTooltips = true,
+	enableWhoTooltips = false,
+	enableWhoMessages = false,
+	enableGuildTooltips = false,
+	enableKeystoneTooltips = false,
 	enableChallengesTweak = false,
-	showTooltipSpacing = true,
+	showTooltipSpacing = true, -- not really needed I guess, deprecate it from this table?
 }
 
 -- constants
@@ -69,6 +70,255 @@ local function AddProvider(_, data)
 	dataProviders[#dataProviders + 1] = data
 end
 
+-- creates the config frame
+local function InitConfig()
+	configFrame = CreateFrame("Frame", addonName .. "ConfigFrame", UIParent)
+	configFrame:Hide()
+
+	local config
+
+	local function WidgetHelp_OnEnter(self)
+		if self.tooltip then
+			GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
+			GameTooltip:AddLine(self.tooltip, 1, 1, 1, true)
+			GameTooltip:Show()
+		end
+	end
+
+	local function WidgetButton_OnEnter(self)
+		self.text:SetTextColor(1, 1, 1)
+	end
+
+	local function WidgetButton_OnLeave(self)
+		self.text:SetTextColor(.8, .8, .8)
+	end
+
+	local function Close_OnClick()
+		configFrame:SetShown(not configFrame:IsShown())
+	end
+
+	local function Save_OnClick()
+		Close_OnClick()
+		local name = UnitName("player")
+		local reload
+		for i = 1, #config.modules do
+			local f = config.modules[i]
+			local checked = f.checkButton:GetChecked()
+			local loaded = IsAddOnLoaded(f.addon)
+			if checked then
+				if not loaded then
+					reload = 1
+					EnableAddOn(f.addon, name)
+				end
+			elseif loaded then
+				reload = 1
+				DisableAddOn(f.addon, name)
+			end
+		end
+		for i = 1, #config.options do
+			local f = config.options[i]
+			local checked = f.checkButton:GetChecked()
+			addonConfig[f.cvar] = not not checked
+		end
+		if reload then
+			ReloadUI()
+		end
+	end
+
+	config = {
+		modules = {},
+		options = {},
+		Update = function(self)
+			for i = 1, #self.modules do
+				local f = self.modules[i]
+				f.checkButton:SetChecked(IsAddOnLoaded(f.addon))
+			end
+			for i = 1, #self.options do
+				local f = self.options[i]
+				f.checkButton:SetChecked(addonConfig[f.cvar] ~= false)
+			end
+		end,
+		CreateWidget = function(self, widgetType, height)
+			local widget = CreateFrame(widgetType, nil, configFrame)
+
+			if self.lastWidget then
+				widget:SetPoint("TOPLEFT", self.lastWidget, "BOTTOMLEFT", 0, -24)
+				widget:SetPoint("BOTTOMRIGHT", self.lastWidget, "BOTTOMRIGHT", 0, -4)
+			else
+				widget:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 16, -38)
+				widget:SetPoint("BOTTOMRIGHT", configFrame, "TOPRIGHT", -16, -16)
+			end
+
+			widget.bg = widget:CreateTexture()
+			widget.bg:SetAllPoints()
+			widget.bg:SetColorTexture(0, 0, 0, 0.5)
+
+			widget.text = widget:CreateFontString(nil, nil, "GameFontNormal")
+			widget.text:SetPoint("LEFT", 8, 0)
+			widget.text:SetPoint("RIGHT", -8, 0)
+			widget.text:SetJustifyH("LEFT")
+
+			widget.checkButton = CreateFrame("CheckButton", "$parentCheckButton", widget, "UICheckButtonTemplate")
+			widget.checkButton:Hide()
+			widget.checkButton:SetPoint("RIGHT", -4, 0)
+			widget.checkButton:SetScale(0.7)
+
+			widget.help = CreateFrame("Frame", nil, widget)
+			widget.help:Hide()
+			widget.help:SetPoint("LEFT", widget.checkButton, "LEFT", -20, 0)
+			widget.help:SetSize(16, 16)
+			widget.help:SetScale(0.9)
+			widget.help.icon = widget.help:CreateTexture()
+			widget.help.icon:SetAllPoints()
+			widget.help.icon:SetTexture("Interface\\GossipFrame\\DailyActiveQuestIcon")
+
+			widget.help:SetScript("OnEnter", WidgetHelp_OnEnter)
+			widget.help:SetScript("OnLeave", GameTooltip_Hide)
+
+			if widgetType == "Button" then
+				widget.text:SetTextColor(.6, .6, .6)
+				widget:SetScript("OnEnter", WidgetButton_OnEnter)
+				widget:SetScript("OnLeave", WidgetButton_OnLeave)
+			end
+
+			self.lastWidget = widget
+			return widget
+		end,
+		CreateHeadline = function(self, text)
+			local frame = self:CreateWidget("Frame")
+			frame.bg:Hide()
+			frame.text:SetText(text)
+			return frame
+		end,
+		CreateModuleToggle = function(self, name, addon)
+			local frame = self:CreateWidget("Frame")
+			frame.text:SetText(name)
+			frame.addon = addon
+			frame.checkButton:Show()
+			self.modules[#self.modules + 1] = frame
+			return frame
+		end,
+		CreateOptionToggle = function(self, label, description, cvar)
+			local frame = self:CreateWidget("Frame")
+			frame.text:SetText(label)
+			frame.tooltip = description
+			frame.cvar = cvar
+			frame.help.tooltip = description
+			frame.help:Show()
+			frame.checkButton:Show()
+			self.options[#self.options + 1] = frame
+			return frame
+		end,
+	}
+
+	-- customize the look and feel
+	do
+		configFrame:SetSize(256, 496)
+		configFrame:SetPoint("CENTER")
+		configFrame:EnableMouse(true)
+
+		local bg = configFrame:CreateTexture()
+		bg:SetAllPoints()
+		bg:SetColorTexture(0.15, 0.15, 0.15, 0.7)
+
+		configFrame:SetScript("OnShow", function()
+			if not InCombatLockdown() then
+				if InterfaceOptionsFrame:IsShown() then
+					InterfaceOptionsFrame_Show()
+				end
+				HideUIPanel(GameMenuFrame)
+			end
+			config:Update()
+		end)
+
+		configFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+		configFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+
+		configFrame:SetScript("OnEvent", function(self, event)
+			if event == "PLAYER_REGEN_ENABLED" then
+				if self.combatHidden then
+					self.combatHidden = nil
+					self:Show()
+				end
+			elseif event == "PLAYER_REGEN_DISABLED" then
+				if self:IsShown() then
+					self.combatHidden = true
+					self:Hide()
+				end
+			end
+		end)
+
+		-- add widgets
+		local header = config:CreateHeadline(addonName .. " Configuration")
+		header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
+		config:CreateHeadline("Modules")
+		config:CreateModuleToggle("Europe - Alliance", "RaiderIO_DB_EU_A")
+		config:CreateModuleToggle("Europe - Horde", "RaiderIO_DB_EU_H")
+		config:CreateModuleToggle("Korea - Alliance", "RaiderIO_DB_KR_A")
+		config:CreateModuleToggle("Korea - Horde", "RaiderIO_DB_KR_H")
+		config:CreateModuleToggle("Taiwan - Alliance", "RaiderIO_DB_TW_A")
+		config:CreateModuleToggle("Taiwan - Horde", "RaiderIO_DB_TW_H")
+		config:CreateModuleToggle("US & NA - Alliance", "RaiderIO_DB_US_A")
+		config:CreateModuleToggle("US & NA - Horde", "RaiderIO_DB_US_H")
+		config:CreateHeadline("Look and Feel")
+		config:CreateOptionToggle("Unit Tooltips", "Show Mythic+ Score when you mouseover player units.", "enableUnitTooltips")
+		config:CreateOptionToggle("LFD Tooltips", "Show Mythic+ Score to the group tooltip or the applicant tooltip.", "enableLFGTooltips")
+		config:CreateOptionToggle("Who Tooltips", "Show Mythic+ Score when you mouseover them in the Who results dialog.", "enableWhoTooltips")
+		config:CreateOptionToggle("Who Results", "Show Mythic+ Score in the chat when you Who someone specific.", "enableWhoMessages")
+		config:CreateOptionToggle("Guild Tooltips", "Show Mythic+ Score when you mouseover guildmembers in the guild roster.", "enableGuildTooltips")
+		config:CreateOptionToggle("Keystone Tooltips", "Adds Keystone information to Keystone tooltips. Suggests a Mythic+ Score for the group.", "enableKeystoneTooltips")
+		config:CreateOptionToggle("ChallengeUI Tweak", "Scales down the dungeon icons and tries to make room for more information on-screen.", "enableChallengesTweak")
+
+		-- add save button and cancel buttons
+		local buttons = config:CreateWidget("Frame", 4)
+		buttons:Hide()
+		local save = config:CreateWidget("Button", 4)
+		local cancel = config:CreateWidget("Button", 4)
+		save:ClearAllPoints()
+		save:SetPoint("LEFT", buttons, "LEFT", 0, -12)
+		save:SetSize(96, 20)
+		save.text:SetText(SAVE)
+		save.text:SetJustifyH("CENTER")
+		save:SetScript("OnClick", Save_OnClick)
+		cancel:ClearAllPoints()
+		cancel:SetPoint("RIGHT", buttons, "RIGHT", 0, -12)
+		cancel:SetSize(96, 20)
+		cancel.text:SetText(CANCEL)
+		cancel.text:SetJustifyH("CENTER")
+		cancel:SetScript("OnClick", Close_OnClick)
+	end
+
+	-- add the category and a shortcut button in the interface panel options
+	do
+		local panel = CreateFrame("Frame", configFrame:GetName() .. "Panel", InterfaceOptionsFramePanelContainer)
+		panel.name = addonName
+		panel:Hide()
+
+		local button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+		button:SetText("Open Config")
+		button:SetWidth(button:GetTextWidth() + 18)
+		button:SetPoint("TOPLEFT", 16, -16)
+		button:SetScript("OnClick", function()
+			if not InCombatLockdown() then
+				configFrame:SetShown(not configFrame:IsShown())
+			end
+		end)
+
+		InterfaceOptions_AddCategory(panel, true)
+	end
+
+	-- create slash command to toggle the config frame
+	do
+		_G["SLASH_" .. addonName .. "1"] = "/raiderio"
+
+		SlashCmdList[addonName] = function()
+			if not InCombatLockdown() then
+				configFrame:SetShown(not configFrame:IsShown())
+			end
+		end
+	end
+end
+
 -- the addon has just loaded, setup the config table, run or wait for the login event and register events
 local function Init()
 	-- update local reference to the correct savedvariable table
@@ -84,6 +334,9 @@ local function Init()
 	else
 		addon:PLAYER_LOGIN()
 	end
+
+	-- create the config frame
+	InitConfig()
 
 	-- purge cache after zoning
 	addon:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -669,6 +922,8 @@ do
 		return 1
 	end
 	--]=]
+
+	-- WorldStateScoreButton1
 end
 
 -- register events and wait for the addon load event to fire

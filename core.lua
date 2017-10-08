@@ -11,6 +11,7 @@ local addonConfig = {
 	enableWhoMessages = true,
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
+	enableChallengesTweak = false,
 	showTooltipSpacing = true,
 }
 
@@ -329,7 +330,7 @@ function addon:PLAYER_LOGIN()
 	-- store our faction for later use
 	PLAYER_FACTION = GetFaction("player")
 	-- get the regions score table
-	SCORES = ns.regionScoreStats[REGIONS[GetCurrentRegion()]:upper()]
+	SCORES = ns.regionScoreStats[REGIONS[GetCurrentRegion()]]
 end
 
 -- we enter the world (after a loading screen, int/out of instances)
@@ -355,7 +356,7 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.LFGListApplicationViewerScrollFrameButton1 then
 			_G.StaticPopupDialogs["RAIDERIO_COPY_URL"] = {
-				text = "URL : %s",
+				text = "%s",
 				button2 = CLOSE,
 				hasEditBox = true,
 				hasWideEditBox = true,
@@ -367,7 +368,7 @@ do
 				OnShow = function(self)
 					self:SetWidth(420)
 					local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"]
-					editBox:SetText(self.text.text_arg1)
+					editBox:SetText(self.text.text_arg2)
 					editBox:SetFocus()
 					editBox:HighlightText(false)
 					local button = _G[self:GetName() .. "Button2"]
@@ -426,14 +427,14 @@ do
 					end
 					if fullName then
 						local name, realm = GetNameAndRealm(fullName)
-						realm = GetRealmSlug(realm)
+						local realmSlug = GetRealmSlug(realm)
 						local region = REGIONS[GetCurrentRegion()]
-						local url = format("https://raider.io/characters/%s/%s/%s", region, realm, name)
+						local url = format("https://raider.io/characters/%s/%s/%s", region, realmSlug, name)
 						if IsModifiedClick("CHATLINK") then
 							local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
 							editBox:HighlightText()
 						else
-							StaticPopup_Show("RAIDERIO_COPY_URL", url)
+							StaticPopup_Show("RAIDERIO_COPY_URL", format("%s (%s)", name, realm), url)
 						end
 						CloseDropDownMenus()
 					end
@@ -618,6 +619,30 @@ do
 		end
 		ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", filter)
 		return 1
+	end
+
+	-- Blizzard_ChallengesUI
+	uiHooks[#uiHooks + 1] = function()
+		if _G.ChallengesFrame then
+			local function Update(frame)
+				local isDisabled = addonConfig.enableChallengesTweak == false
+				local d = frame.DungeonIcons
+				for i = 1, #d do
+					local f = d[i]
+					if isDisabled then
+						f:SetScale(1)
+					else
+						f:SetScale(0.8)
+						if i == 1 then
+							f:ClearAllPoints()
+							f:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 110, 75)
+						end
+					end
+				end
+			end
+			hooksecurefunc("ChallengesFrame_Update", Update)
+			return 1
+		end
 	end
 
 	-- Keystone GameTooltip + ItemRefTooltip

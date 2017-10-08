@@ -1,21 +1,3 @@
-local _G = _G
-local assert = assert
-local max = max
-local select = select
-local table = table
-local type = type
-local C_LFGList = C_LFGList
-local GetGuildRosterInfo = GetGuildRosterInfo
-local GetItemQualityColor = GetItemQualityColor
-local GetRealmName = GetRealmName
-local IsLoggedIn = IsLoggedIn
-local UnitExists = UnitExists
-local UnitFactionGroup = UnitFactionGroup
-local UnitIsPlayer = UnitIsPlayer
-local UnitLevel = UnitLevel
-local UnitName = UnitName
-
--- core
 local addonName, ns = ...
 local dataProviders = {}
 local uiHooks = {}
@@ -39,11 +21,6 @@ local FACTION = {
 	["Horde"] = 2,
 }
 local SCORES = {
-	[1] = 3000,
-	[2] = 2400,
-	[3] = 1800,
-	[4] = 1400,
-	[5] = 1000
 }
 local ROLE_MASK = {
 	TANK = 1,
@@ -111,6 +88,11 @@ local function Init()
 	addon:RegisterEvent("PLAYER_ENTERING_WORLD")
 end
 
+-- retrieves the url slug for a given realm name
+local function GetRealmSlug(realm)
+	return ns.realmSlugs[realm] or realm
+end
+
 -- returns the name, realm and possibly unit
 local function GetNameAndRealm(arg1, arg2)
 	local name, realm, unit
@@ -118,21 +100,19 @@ local function GetNameAndRealm(arg1, arg2)
 		unit = arg1
 		if UnitIsPlayer(arg1) then
 			name, realm = UnitName(arg1)
-			realm = realm and realm ~= "" and realm or GetRealmName()
+			realm = realm and realm ~= "" and realm or GetNormalizedRealmName()
 		end
 	elseif type(arg1) == "string" and arg1 ~= "" then
 		if arg1:find("-", nil, true) then
 			name, realm = ("-"):split(arg1)
-			realm = ns:GetRealmFromSlug(realm) or realm -- slug to realm conversion
 		else
 			name = arg1 -- assume this is the name
 		end
 		if not realm or realm == "" then
 			if type(arg2) == "string" and arg2 ~= "" then
 				realm = arg2
-				realm = ns:GetRealmFromSlug(realm) or realm -- slug to realm conversion
 			else
-				realm = GetRealmName() -- assume they are on our realm
+				realm = GetNormalizedRealmName() -- assume they are on our realm
 			end
 		end
 	end
@@ -248,18 +228,22 @@ end
 local function GetScoreColor(score)
 	local r, g, b = 1, .5, .5
 	if type(score) == "number" then
-		if score >= SCORES[1] then
-			r, g, b = GetItemQualityColor(5)
-		elseif score >= SCORES[2] then
-			r, g, b = GetItemQualityColor(4)
-		elseif score >= SCORES[3] then
-			r, g, b = GetItemQualityColor(3)
-		elseif score >= SCORES[4] then
-			r, g, b = GetItemQualityColor(2)
-		elseif score >= SCORES[5] then
-			r, g, b = GetItemQualityColor(1)
+		if SCORES then
+			if score >= SCORES[1] then
+				r, g, b = GetItemQualityColor(5)
+			elseif score >= SCORES[2] then
+				r, g, b = GetItemQualityColor(4)
+			elseif score >= SCORES[3] then
+				r, g, b = GetItemQualityColor(3)
+			elseif score >= SCORES[4] then
+				r, g, b = GetItemQualityColor(2)
+			elseif score >= SCORES[5] then
+				r, g, b = GetItemQualityColor(1)
+			else -- if score >= SCORES[6] then
+				r, g, b = GetItemQualityColor(0)
+			end
 		else
-			r, g, b = GetItemQualityColor(0)
+			r, g, b = 1, 1, 1
 		end
 	end
 	return r, g, b
@@ -344,6 +328,8 @@ end
 function addon:PLAYER_LOGIN()
 	-- store our faction for later use
 	PLAYER_FACTION = GetFaction("player")
+	-- get the regions score table
+	SCORES = ns.regionScoreStats[REGIONS[GetCurrentRegion()]:upper()]
 end
 
 -- we enter the world (after a loading screen, int/out of instances)
@@ -440,6 +426,7 @@ do
 					end
 					if fullName then
 						local name, realm = GetNameAndRealm(fullName)
+						realm = GetRealmSlug(realm)
 						local region = REGIONS[GetCurrentRegion()]
 						local url = format("https://raider.io/characters/%s/%s/%s", region, realm, name)
 						if IsModifiedClick("CHATLINK") then

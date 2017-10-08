@@ -4,6 +4,6 @@
 ## Author: RaiderIO, Vladinator
 ## Version: 7.2.5 (@project-version@)
 ## SavedVariables: RaiderIO_Config
-constants.lua
+db/db_realms.lua
+db/db_score_stats.lua
 core.lua
-config.lua

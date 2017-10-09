@@ -1,9 +1,9 @@
 ## Interface: 70200
-## Title: RaiderIO - US & NA - Alliance
+## Title: RaiderIO - Americas - Alliance
 ## Notes: Enable the region and faction you want to load into RaiderIO for the selected character.
 ## Author: RaiderIO, Vladinator
 ## Dependencies: RaiderIO
 ## DefaultState: disabled
-## X-Region: US & NA
+## X-Region: Americas
 ## X-Faction: Alliance
 ../RaiderIO/db/db_us_alliance.lua

@@ -6,10 +6,10 @@ set toc_author=RaiderIO, Vladinator
 set toc_addon=RaiderIO
 
 for %%r in (
+	"US	Americas"
 	"EU	Europe"
 	"KR	Korea"
 	"TW	Taiwan"
-	"US	US & NA"
 ) do (
 	set r=%%r
 	set r1=!r:~1,2!

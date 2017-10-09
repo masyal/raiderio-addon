@@ -8,11 +8,11 @@ local configFrame
 local addonConfig = {
 	enableUnitTooltips = true,
 	enableLFGTooltips = true,
+	enableLFGDropdown = true,
 	enableWhoTooltips = false,
 	enableWhoMessages = false,
 	enableGuildTooltips = false,
 	enableKeystoneTooltips = false,
-	enableChallengesTweak = false,
 	showTooltipSpacing = true, -- not really needed I guess, deprecate it from this table?
 }
 
@@ -21,8 +21,6 @@ local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local FACTION = {
 	["Alliance"] = 1,
 	["Horde"] = 2,
-}
-local SCORES = {
 }
 local ROLE_MASK = {
 	TANK = 1,
@@ -44,6 +42,7 @@ local REGIONS = {
 }
 
 -- session constants
+local SCORES
 local PLAYER_FACTION
 
 -- create the addon core frame
@@ -65,13 +64,28 @@ end
 -- adds data provider to RaiderIO (only to be used by the other database modules)
 local function AddProvider(_, data)
 	-- make sure the object is what we expect it to be like
-	assert(type(data.region) == "string" and type(data.faction) == "number" and type(data.db) == "table", "RaiderIO has been requested to load a database that isn't supported.")
+	assert(type(data.region) == "string" and type(data.faction) == "number" and type(data.db) == "table", "Raider.IO has been requested to load a database that isn't supported.")
 	-- append provider to the table
 	dataProviders[#dataProviders + 1] = data
 end
 
 -- creates the config frame
 local function InitConfig()
+	_G.StaticPopupDialogs["RAIDERIO_RELOADUI_CONFIRM"] = {
+		text = "Your changes have been saved, but, you have changed the load state of at least one module. This means you have to reload your interface for changes to take effect. Do you wish to do it right now?",
+		button1 = "Reload now",
+		button2 = "I'll do it later",
+		hasEditBox = false,
+		preferredIndex = 3,
+		timeout = 0,
+		whileDead = true,
+		hideOnEscape = true,
+		OnShow = function() end,
+		OnHide = function() end,
+		OnAccept = function() ReloadUI() end,
+		OnCancel = function() end
+	}
+
 	configFrame = CreateFrame("Frame", addonName .. "ConfigFrame", UIParent)
 	configFrame:Hide()
 
@@ -86,11 +100,13 @@ local function InitConfig()
 	end
 
 	local function WidgetButton_OnEnter(self)
-		self.text:SetTextColor(1, 1, 1)
+		self:SetBackdropColor(0.3, 0.3, 0.3, 1)
+		self:SetBackdropBorderColor(1, 1, 1, 1)
 	end
 
 	local function WidgetButton_OnLeave(self)
-		self.text:SetTextColor(.8, .8, .8)
+		self:SetBackdropColor(0, 0, 0, 1)
+		self:SetBackdropBorderColor(1, 1, 1, 0.3)
 	end
 
 	local function Close_OnClick()
@@ -121,13 +137,18 @@ local function InitConfig()
 			addonConfig[f.cvar] = not not checked
 		end
 		if reload then
-			ReloadUI()
+			StaticPopup_Show("RAIDERIO_RELOADUI_CONFIRM")
 		end
 	end
 
 	config = {
 		modules = {},
 		options = {},
+		backdrop = {
+			bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+			edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 16,
+			insets = { left = 4, right = 4, top = 4, bottom = 4 }
+		},
 		Update = function(self)
 			for i = 1, #self.modules do
 				local f = self.modules[i]
@@ -176,7 +197,11 @@ local function InitConfig()
 			widget.help:SetScript("OnLeave", GameTooltip_Hide)
 
 			if widgetType == "Button" then
-				widget.text:SetTextColor(.6, .6, .6)
+				widget.bg:Hide()
+				widget.text:SetTextColor(1, 1, 1)
+				widget:SetBackdrop(self.backdrop)
+				widget:SetBackdropColor(0, 0, 0, 1)
+				widget:SetBackdropBorderColor(1, 1, 1, 0.3)
 				widget:SetScript("OnEnter", WidgetButton_OnEnter)
 				widget:SetScript("OnLeave", WidgetButton_OnLeave)
 			end
@@ -215,11 +240,18 @@ local function InitConfig()
 	do
 		configFrame:SetSize(256, 496)
 		configFrame:SetPoint("CENTER")
-		configFrame:EnableMouse(true)
+		configFrame:SetFrameStrata("DIALOG")
+		configFrame:SetFrameLevel(255)
 
-		local bg = configFrame:CreateTexture()
-		bg:SetAllPoints()
-		bg:SetColorTexture(0.15, 0.15, 0.15, 0.7)
+		configFrame:EnableMouse(true)
+		configFrame:SetClampedToScreen(true)
+		configFrame:SetDontSavePosition(true)
+		configFrame:SetMovable(true)
+		configFrame:RegisterForDrag("LeftButton")
+
+		configFrame:SetBackdrop(config.backdrop)
+		configFrame:SetBackdropColor(0, 0, 0, 0.8)
+		configFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.8)
 
 		configFrame:SetScript("OnShow", function()
 			if not InCombatLockdown() then
@@ -231,8 +263,13 @@ local function InitConfig()
 			config:Update()
 		end)
 
-		configFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-		configFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+		configFrame:SetScript("OnDragStart", function(self)
+			self:StartMoving()
+		end)
+
+		configFrame:SetScript("OnDragStop", function(self)
+			self:StopMovingOrSizing()
+		end)
 
 		configFrame:SetScript("OnEvent", function(self, event)
 			if event == "PLAYER_REGEN_ENABLED" then
@@ -248,26 +285,29 @@ local function InitConfig()
 			end
 		end)
 
+		configFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+		configFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+
 		-- add widgets
 		local header = config:CreateHeadline(addonName .. " Configuration")
 		header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
 		config:CreateHeadline("Modules")
+		config:CreateModuleToggle("Americas - Alliance", "RaiderIO_DB_US_A")
+		config:CreateModuleToggle("Americas - Horde", "RaiderIO_DB_US_H")
 		config:CreateModuleToggle("Europe - Alliance", "RaiderIO_DB_EU_A")
 		config:CreateModuleToggle("Europe - Horde", "RaiderIO_DB_EU_H")
 		config:CreateModuleToggle("Korea - Alliance", "RaiderIO_DB_KR_A")
 		config:CreateModuleToggle("Korea - Horde", "RaiderIO_DB_KR_H")
 		config:CreateModuleToggle("Taiwan - Alliance", "RaiderIO_DB_TW_A")
 		config:CreateModuleToggle("Taiwan - Horde", "RaiderIO_DB_TW_H")
-		config:CreateModuleToggle("US & NA - Alliance", "RaiderIO_DB_US_A")
-		config:CreateModuleToggle("US & NA - Horde", "RaiderIO_DB_US_H")
 		config:CreateHeadline("Look and Feel")
 		config:CreateOptionToggle("Unit Tooltips", "Show Mythic+ Score when you mouseover player units.", "enableUnitTooltips")
 		config:CreateOptionToggle("LFD Tooltips", "Show Mythic+ Score to the group tooltip or the applicant tooltip.", "enableLFGTooltips")
+		config:CreateOptionToggle("LFD Dropdown", "Show option to copy Raider.IO profile link in the dropdown menus on groups and applicants.", "enableLFGDropdown")
 		config:CreateOptionToggle("Who Tooltips", "Show Mythic+ Score when you mouseover them in the Who results dialog.", "enableWhoTooltips")
 		config:CreateOptionToggle("Who Results", "Show Mythic+ Score in the chat when you Who someone specific.", "enableWhoMessages")
-		config:CreateOptionToggle("Guild Tooltips", "Show Mythic+ Score when you mouseover guildmembers in the guild roster.", "enableGuildTooltips")
+		config:CreateOptionToggle("Guild Tooltips", "Show Mythic+ Score when you mouseover guild members in the guild roster.", "enableGuildTooltips")
 		config:CreateOptionToggle("Keystone Tooltips", "Adds Keystone information to Keystone tooltips. Suggests a Mythic+ Score for the group.", "enableKeystoneTooltips")
-		config:CreateOptionToggle("ChallengeUI Tweak", "Scales down the dungeon icons and tries to make room for more information on-screen.", "enableChallengesTweak")
 
 		-- add save button and cancel buttons
 		local buttons = config:CreateWidget("Frame", 4)
@@ -276,16 +316,24 @@ local function InitConfig()
 		local cancel = config:CreateWidget("Button", 4)
 		save:ClearAllPoints()
 		save:SetPoint("LEFT", buttons, "LEFT", 0, -12)
-		save:SetSize(96, 20)
+		save:SetSize(96, 28)
 		save.text:SetText(SAVE)
 		save.text:SetJustifyH("CENTER")
 		save:SetScript("OnClick", Save_OnClick)
 		cancel:ClearAllPoints()
 		cancel:SetPoint("RIGHT", buttons, "RIGHT", 0, -12)
-		cancel:SetSize(96, 20)
+		cancel:SetSize(96, 28)
 		cancel.text:SetText(CANCEL)
 		cancel.text:SetJustifyH("CENTER")
 		cancel:SetScript("OnClick", Close_OnClick)
+
+		-- adjust frame height dynamically
+		local children = {configFrame:GetChildren()}
+		local height = 64
+		for i = 1, #children do
+			height = height + children[i]:GetHeight()
+		end
+		configFrame:SetHeight(height)
 	end
 
 	-- add the category and a shortcut button in the interface panel options
@@ -310,6 +358,7 @@ local function InitConfig()
 	-- create slash command to toggle the config frame
 	do
 		_G["SLASH_" .. addonName .. "1"] = "/raiderio"
+		_G["SLASH_" .. addonName .. "2"] = "/rio"
 
 		SlashCmdList[addonName] = function()
 			if not InCombatLockdown() then
@@ -406,11 +455,11 @@ local function CacheProviderData(provider, name, realm, profile)
 	-- extract the scores per role combination (very ugly, but if-else is probably most efficient... given the amount of valid role combinations)
 	local tankScore, healScore, dpsScore = 0, 0, 0
 	if cache.roleMask == ROLE_MASK.TANK then
-		tankScore = profile[1]
+		tankScore = profile[2]
 	elseif cache.roleMask == ROLE_MASK.HEALER then
-		healScore = profile[1]
+		healScore = profile[2]
 	elseif cache.roleMask == ROLE_MASK.DPS then
-		dpsScore = profile[1]
+		dpsScore = profile[2]
 	elseif cache.roleMask == ROLE_COMBOS.TANK_HEALER then
 		tankScore, healScore = profile[4], profile[5]
 	elseif cache.roleMask == ROLE_COMBOS.TANK_DPS then
@@ -507,49 +556,48 @@ end
 local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName)
 	local profile = GetScore(arg1)
 	if profile then
-		-- assume players primary role
-		local primaryRole = "DPS "
-		if profile.primaryRole == ROLE_MASK.TANK then
-			primaryRole = "Tank "
-		elseif profile.primaryRole == ROLE_MASK.HEALER then
-			primaryRole = "Healer "
-		end
 		-- add padding line if it looks nicer on the tooltip, also respect users preference
 		if not forceNoPadding and addonConfig.showTooltipSpacing then
 			tooltip:AddLine(" ")
 		end
-		tooltip:AddLine("Raider.IO", 1, 0.85, 0, false)
+
 		-- show the players name if required by the calling function
 		if forceAddName then
 			tooltip:AddLine(profile.name .. " (" .. profile.realm .. ")", 1, 1, 1, false)
 		end
-		-- draw differently if the player has multiple roles or not
-		if profile.isMultiRole then
-			-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
-			if profile.prevAllScore > 0 and profile.prevAllScore/2 > profile.allScore then
-				tooltip:AddDoubleLine("Mythic+ Score", profile.prevAllScore or "N/A", 1, 1, 1, GetScoreColor(profile.prevAllScore))
-			elseif profile.allScore > 0 or profile.isMultiRole then
-				tooltip:AddDoubleLine("Mythic+ Score", profile.allScore or "N/A", 1, 1, 1, GetScoreColor(profile.allScore))
-			end
-			-- show tank, healer and dps scores
-			if profile.tankScore > 0 then
-				tooltip:AddDoubleLine("Tank", profile.tankScore or "N/A", 1, 1, 1, GetScoreColor(profile.tankScore))
-			end
-			if profile.healScore > 0 then
-				tooltip:AddDoubleLine("Healer", profile.healScore or "N/A", 1, 1, 1, GetScoreColor(profile.healScore))
-			end
-			if profile.dpsScore > 0 then
-				tooltip:AddDoubleLine("DPS", profile.dpsScore or "N/A", 1, 1, 1, GetScoreColor(profile.dpsScore))
-			end
-		else
-			-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
-			if profile.prevAllScore > 0 and profile.prevAllScore/2 > profile.allScore then
-				tooltip:AddDoubleLine("Mythic+ " .. primaryRole .. "Score", profile.prevAllScore or "N/A", 1, 1, 1, GetScoreColor(profile.prevAllScore))
-			elseif profile.allScore > 0 or profile.isMultiRole then
-				tooltip:AddDoubleLine("Mythic+ " .. primaryRole .. "Score", profile.allScore or "N/A", 1, 1, 1, GetScoreColor(profile.allScore))
+
+		tooltip:AddDoubleLine("Raider.IO M+ Score", profile.allScore, 1, 0.85, 0, GetScoreColor(profile.allScore))
+
+		-- show tank, healer and dps scores
+		local scores = {}
+
+		if profile.tankScore then
+			scores[#scores + 1] = { "Tank Score", profile.tankScore }
+		end
+
+		if profile.healScore then
+			scores[#scores + 1] = { "Healer Score", profile.healScore }
+		end
+
+		if profile.dpsScore then
+			scores[#scores + 1] = { "DPS Score", profile.dpsScore }
+		end
+
+		table.sort(scores, function (a, b) return a[2] > b[2] end)
+
+		for i = 1, #scores do
+			if scores[i][2] > 0 then
+				tooltip:AddDoubleLine(scores[i][1], scores[i][2] or "N/A", 1, 1, 1, GetScoreColor(scores[i][2]))
 			end
 		end
+
+		if profile.prevAllScore > profile.allScore then
+			-- TODO: read previous season
+			tooltip:AddDoubleLine("Previous Season Score", profile.prevAllScore, 0.8, 0.8, 0.8, GetScoreColor(profile.prevAllScore))
+		end
+
 		tooltip:Show()
+
 		return 1
 	end
 end
@@ -650,8 +698,8 @@ do
 							hooked[b] = 1
 							b:HookScript("OnEnter", OnEnter)
 							b:HookScript("OnLeave", OnLeave)
-							b:HookScript("OnDoubleClick", OnDoubleClick)
-							b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+							--b:HookScript("OnDoubleClick", OnDoubleClick)
+							--b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 						end
 					end
 				elseif self.memberIdx then
@@ -697,8 +745,8 @@ do
 				local b = _G["LFGListApplicationViewerScrollFrameButton" .. i]
 				b:HookScript("OnEnter", OnEnter)
 				b:HookScript("OnLeave", OnLeave)
-				b:HookScript("OnDoubleClick", OnDoubleClick)
-				b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+				--b:HookScript("OnDoubleClick", OnDoubleClick)
+				--b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 			end
 			-- search results
 			local function SetSearchEntryTooltip(tooltip, resultID, autoAcceptOption)
@@ -710,8 +758,8 @@ do
 			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
 			for i = 1, 10 do
 				local b = _G["LFGListSearchPanelScrollFrameButton" .. i]
-				b:HookScript("OnDoubleClick", OnDoubleClick)
-				b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+				--b:HookScript("OnDoubleClick", OnDoubleClick)
+				--b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 			end
 			-- UnempoweredCover blocking removal
 			do
@@ -720,6 +768,10 @@ do
 				f:EnableMouseWheel(false)
 				f:SetToplevel(false)
 			end
+			-- GroupDropDown
+			-- ActivityDropDown
+			-- LFGListSearchEntry_OnClick
+			-- LFGListSearchPanel.ScrollFrame.Button1
 			return 1
 		end
 	end
@@ -767,7 +819,7 @@ do
 					local fullName = GetGuildRosterInfo(self.guildIndex)
 					if fullName then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
-						if not AppendGameTooltip(GameTooltip, fullName, true, true) then
+						if not AppendGameTooltip(GameTooltip, fullName, true, false) then
 							GameTooltip:Hide()
 						end
 					end
@@ -810,39 +862,40 @@ do
 		local repl, text, profile
 		local function score(profile)
 			text = ""
-			-- assume players primary role
-			local primaryRole = "DPS "
-			if profile.primaryRole == ROLE_MASK.TANK then
-				primaryRole = "Tank "
-			elseif profile.primaryRole == ROLE_MASK.HEALER then
-				primaryRole = "Healer "
+
+			-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
+			if profile.prevAllScore > profile.allScore then
+				text = text .. "Raider|cffFFFFFF|r.IO M+ Score: " .. profile.allScore .. " (Prev. Season: " .. profile.prevAllScore .. "). "
+			elseif profile.allScore > 0 or profile.isMultiRole then
+				text = text .. "Raider|cffFFFFFF|r.IO M+ Score: " .. profile.allScore .. ". "
 			end
-			-- draw differently if the player has multiple roles or not
-			if profile.isMultiRole then
-				-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
-				if profile.prevAllScore > 0 and profile.prevAllScore/2 > profile.allScore then
-					text = text .. "Mythic+ Score " .. profile.prevAllScore .. " "
-				elseif profile.allScore > 0 or profile.isMultiRole then
-					text = text .. "Mythic+ Score " .. profile.allScore .. " "
-				end
-				-- show tank, healer and dps scores
-				if profile.tankScore > 0 then
-					text = text .. "Tank " .. profile.tankScore .. " "
-				end
-				if profile.healScore > 0 then
-					text = text .. "Healer " .. profile.healScore .. " "
-				end
-				if profile.dpsScore > 0 then
-					text = text .. "DPS " .. profile.dpsScore .. " "
-				end
-			else
-				-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
-				if profile.prevAllScore > 0 and profile.prevAllScore/2 > profile.allScore then
-					text = text .. "Mythic+ " .. primaryRole .. "Score " .. profile.prevAllScore .. " "
-				elseif profile.allScore > 0 or profile.isMultiRole then
-					text = text .. "Mythic+ " .. primaryRole .. "Score " .. profile.allScore .. " "
+
+			-- show tank, healer and dps scores
+			local scores = {}
+
+			if profile.tankScore then
+				scores[#scores + 1] = { "Tank", profile.tankScore }
+			end
+
+			if profile.healScore then
+				scores[#scores + 1] = { "Healer", profile.healScore }
+			end
+
+			if profile.dpsScore then
+				scores[#scores + 1] = { "DPS", profile.dpsScore }
+			end
+
+			table.sort(scores, function (a, b) return a[2] > b[2] end)
+
+			for i = 1, #scores do
+				if scores[i][2] > 0 then
+					if i > 1 then
+						text = text .. ", "
+					end
+					text = text .. scores[i][1] .. ": " .. scores[i][2]
 				end
 			end
+
 			return text
 		end
 		local function filter(self, event, text, ...)
@@ -862,7 +915,7 @@ do
 						end
 						profile = GetScore(nameLink)
 						if profile then
-							repl = repl .. " - RaiderIO " .. score(profile)
+							repl = repl .. " - " .. score(profile)
 						end
 						return false, repl, ...
 					end
@@ -872,30 +925,6 @@ do
 		end
 		ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", filter)
 		return 1
-	end
-
-	-- Blizzard_ChallengesUI
-	uiHooks[#uiHooks + 1] = function()
-		if _G.ChallengesFrame then
-			local function Update(frame)
-				local isDisabled = addonConfig.enableChallengesTweak == false
-				local d = frame.DungeonIcons
-				for i = 1, #d do
-					local f = d[i]
-					if isDisabled then
-						f:SetScale(1)
-					else
-						f:SetScale(0.8)
-						if i == 1 then
-							f:ClearAllPoints()
-							f:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 110, 75)
-						end
-					end
-				end
-			end
-			hooksecurefunc("ChallengesFrame_Update", Update)
-			return 1
-		end
 	end
 
 	-- Keystone GameTooltip + ItemRefTooltip

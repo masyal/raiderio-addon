@@ -73,7 +73,7 @@ end
 -- creates the config frame
 local function InitConfig()
 	_G.StaticPopupDialogs["RAIDERIO_RELOADUI_CONFIRM"] = {
-		text = "Your changes have been saved, but, you have changed the load state of at least one module. This means you have to reload your interface for changes to take effect. Do you wish to do it right now?",
+		text = "Your changes have been saved, but, you have changed the load state of at least one module, or toggled the URL-copy feature.\r\n\r\nThis means you have to reload your interface for changes to take effect.\r\n\r\nDo you wish to do it right now?",
 		button1 = "Reload now",
 		button2 = "I'll do it later",
 		hasEditBox = false,
@@ -135,6 +135,10 @@ local function InitConfig()
 		for i = 1, #config.options do
 			local f = config.options[i]
 			local checked = f.checkButton:GetChecked()
+			local enabled = addonConfig[f.cvar]
+			if f.cvar == "showDropDownCopyURL" and ((not enabled and checked) or (enabled and not checked)) then
+				reload = 1
+			end
 			addonConfig[f.cvar] = not not checked
 		end
 		if reload then
@@ -725,26 +729,8 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.LFGListApplicationViewerScrollFrameButton1 then
 			local hooked = {}
-			local OnEnter, OnLeave, OnGroupOrApplicantClick
+			local OnEnter, OnLeave, OnClick
 			-- application queue
-			local groupOrApplicant = {
-				notCheckable = true,
-				text = "Copy Raider.IO Link",
-				func = function(self)
-					local parent = self.arg1
-					if parent then
-						local _, fullName
-						if parent.resultID then
-							_, _, _, _, _, _, _, _, _, _, _, _, fullName = C_LFGList.GetSearchResultInfo(parent.resultID)
-						elseif parent.memberIdx then
-							fullName = C_LFGList.GetApplicantMemberInfo(parent:GetParent().applicantID, parent.memberIdx)
-						end
-						if fullName then
-							CopyURLForNameAndRealm(fullName)
-						end
-					end
-				end
-			}
 			function OnEnter(self)
 				if addonConfig.enableLFGTooltips == false then
 					return
@@ -756,7 +742,7 @@ do
 							hooked[b] = 1
 							b:HookScript("OnEnter", OnEnter)
 							b:HookScript("OnLeave", OnLeave)
-							-- b:HookScript("OnClick", OnGroupOrApplicantClick)
+							b:HookScript("OnClick", OnClick)
 						end
 					end
 				elseif self.memberIdx then
@@ -775,29 +761,6 @@ do
 					GameTooltip:Hide()
 				end
 			end
-			-- TODO: WIP
-			function OnGroupOrApplicantClick(self, button)
-				if button == "RightButton" then
-					local list = LFGListFrameDropDown.menuList
-					local last = list[#list]
-					groupOrApplicant.index = last.index + 1
-					groupOrApplicant.arg1 = self
-					if last ~= groupOrApplicant then
-						local info = { dist = 0, text = " ", disabled = true, isTitle = true, isUninteractable = true, notCheckable = true, iconOnly = true, icon = "Interface\\Common\\UI-TooltipDivider-Transparent", tCoordLeft = 0, tCoordRight = 0, tCoordTop = 0, tCoordBottom = 0, tSizeX = 0, tSizeY = 0, tFitDropDownSizeX = true }
-						info.iconInfo = { tCoordLeft = info.tCoordLeft, tCoordRight = info.tCoordRight, tCoordTop = info.tCoordTop, tCoordBottom = info.tCoordBottom, tSizeX = info.tSizeX, tSizeY = info.tSizeY, tFitDropDownSizeX = info.tFitDropDownSizeX }
-						list[#list + 1] = info
-						list[#list + 1] = groupOrApplicant
-						CloseDropDownMenus()
-						self:GetScript("OnClick")(self, "RightButton")
-					end
-				end
-			end
-			for i = 1, 14 do
-				local b = _G["LFGListApplicationViewerScrollFrameButton" .. i]
-				b:HookScript("OnEnter", OnEnter)
-				b:HookScript("OnLeave", OnLeave)
-				-- b:HookScript("OnClick", OnGroupOrApplicantClick)
-			end
 			-- search results
 			local function SetSearchEntryTooltip(tooltip, resultID, autoAcceptOption)
 				local _, _, _, _, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
@@ -806,10 +769,188 @@ do
 				end
 			end
 			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
-			-- for i = 1, 10 do
-			-- 	local b = _G["LFGListSearchPanelScrollFrameButton" .. i]
-			-- 	b:HookScript("OnClick", OnGroupOrApplicantClick)
-			-- end
+			-- DropDownMenu (a lot of copy-paste of existing code, because there was no easier/cleaner way...)
+			local LFG_LIST_SEARCH_ENTRY_MENU do
+				LFG_LIST_SEARCH_ENTRY_MENU = {
+					{
+						text = nil, --Group name goes here
+						isTitle = true,
+						notCheckable = true,
+					},
+					{
+						text = WHISPER_LEADER,
+						func = function(_, name) ChatFrame_SendTell(name); end,
+						notCheckable = true,
+						arg1 = nil, --Leader name goes here
+						disabled = nil, --Disabled if we don't have a leader name yet or you haven't applied
+						tooltipWhileDisabled = 1,
+						tooltipOnButton = 1,
+						tooltipTitle = nil, --The title to display on mouseover
+						tooltipText = nil, --The text to display on mouseover
+					},
+					{
+						text = LFG_LIST_REPORT_GROUP_FOR,
+						hasArrow = true,
+						notCheckable = true,
+						menuList = {
+							{
+								text = LFG_LIST_SPAM,
+								func = function(_, id) C_LFGList.ReportSearchResult(id, "lfglistspam"); end,
+								arg1 = nil, --Search result ID goes here
+								notCheckable = true,
+							},
+							{
+								text = LFG_LIST_BAD_NAME,
+								func = function(_, id) C_LFGList.ReportSearchResult(id, "lfglistname"); end,
+								arg1 = nil, --Search result ID goes here
+								notCheckable = true,
+							},
+							{
+								text = LFG_LIST_BAD_DESCRIPTION,
+								func = function(_, id) C_LFGList.ReportSearchResult(id, "lfglistcomment"); end,
+								arg1 = nil, --Search reuslt ID goes here
+								notCheckable = true,
+								disabled = nil, --Disabled if the description is just an empty string
+							},
+							{
+								text = LFG_LIST_BAD_LEADER_NAME,
+								func = function(_, id) C_LFGList.ReportSearchResult(id, "badplayername"); end,
+								arg1 = nil, --Search reuslt ID goes here
+								notCheckable = true,
+								disabled = nil, --Disabled if we don't have a name for the leader
+							},
+						},
+					},
+					{
+						text = CANCEL,
+						notCheckable = true,
+					},
+				}
+			end
+			local LFG_LIST_APPLICANT_MEMBER_MENU do
+				LFG_LIST_APPLICANT_MEMBER_MENU = {
+					{
+						text = nil, --Player name goes here
+						isTitle = true,
+						notCheckable = true,
+					},
+					{
+						text = WHISPER,
+						func = function(_, name) ChatFrame_SendTell(name); end,
+						notCheckable = true,
+						arg1 = nil, --Player name goes here
+						disabled = nil, --Disabled if we don't have a name yet
+					},
+					{
+						text = LFG_LIST_REPORT_FOR,
+						hasArrow = true,
+						notCheckable = true,
+						menuList = {
+							{
+								text = LFG_LIST_BAD_PLAYER_NAME,
+								notCheckable = true,
+								func = function(_, id, memberIdx) C_LFGList.ReportApplicant(id, "badplayername", memberIdx); end,
+								arg1 = nil, --Applicant ID goes here
+								arg2 = nil, --Applicant Member index goes here
+							},
+							{
+								text = LFG_LIST_BAD_DESCRIPTION,
+								notCheckable = true,
+								func = function(_, id) C_LFGList.ReportApplicant(id, "lfglistappcomment"); end,
+								arg1 = nil, --Applicant ID goes here
+							},
+						},
+					},
+					{
+						text = IGNORE_PLAYER,
+						notCheckable = true,
+						func = function(_, name, applicantID) AddIgnore(name); C_LFGList.DeclineApplicant(applicantID); end,
+						arg1 = nil, --Player name goes here
+						arg2 = nil, --Applicant ID goes here
+						disabled = nil, --Disabled if we don't have a name yet
+					},
+					{
+						text = CANCEL,
+						notCheckable = true,
+					},
+				}
+			end
+			local DROPDOWN_ENTRY = {
+				notCheckable = true,
+				arg1 = nil, -- full name goes here
+				text = "Copy Raider.IO Link",
+				dist = 0,
+				func = function(self)
+					local dropdownFrame = UIDROPDOWNMENU_INIT_MENU
+					local name, realm = dropdownFrame.name, dropdownFrame.server
+					if name then
+						CopyURLForNameAndRealm(name, realm)
+					elseif self and self.arg1 then
+						CopyURLForNameAndRealm(self.arg1)
+					end
+				end
+			}
+			table.insert(LFG_LIST_SEARCH_ENTRY_MENU, #LFG_LIST_SEARCH_ENTRY_MENU, DROPDOWN_ENTRY)
+			table.insert(LFG_LIST_APPLICANT_MEMBER_MENU, #LFG_LIST_APPLICANT_MEMBER_MENU, DROPDOWN_ENTRY)
+			local function LFGListUtil_GetSearchEntryMenu(resultID)
+				local id, activityID, name, comment, voiceChat, iLvl, honorLevel, age, numBNetFriends, numCharFriends, numGuildMates, isDelisted, leaderName = C_LFGList.GetSearchResultInfo(resultID);
+				local _, appStatus, pendingStatus, appDuration = C_LFGList.GetApplicationInfo(resultID);
+				LFG_LIST_SEARCH_ENTRY_MENU[1].text = name;
+				LFG_LIST_SEARCH_ENTRY_MENU[2].arg1 = leaderName;
+				local applied = (appStatus == "applied" or appStatus == "invited");
+				LFG_LIST_SEARCH_ENTRY_MENU[2].disabled = not leaderName;
+				LFG_LIST_SEARCH_ENTRY_MENU[2].tooltipTitle = (not applied) and WHISPER
+				LFG_LIST_SEARCH_ENTRY_MENU[2].tooltipText = (not applied) and LFG_LIST_MUST_SIGN_UP_TO_WHISPER;
+				LFG_LIST_SEARCH_ENTRY_MENU[3].menuList[1].arg1 = resultID;
+				LFG_LIST_SEARCH_ENTRY_MENU[3].menuList[2].arg1 = resultID;
+				LFG_LIST_SEARCH_ENTRY_MENU[3].menuList[3].arg1 = resultID;
+				LFG_LIST_SEARCH_ENTRY_MENU[3].menuList[3].disabled = (comment == "");
+				LFG_LIST_SEARCH_ENTRY_MENU[3].menuList[4].arg1 = resultID;
+				LFG_LIST_SEARCH_ENTRY_MENU[3].menuList[4].disabled = not leaderName;
+				LFG_LIST_SEARCH_ENTRY_MENU[4].arg1 = leaderName
+				return LFG_LIST_SEARCH_ENTRY_MENU;
+			end
+			local function LFGListUtil_GetApplicantMemberMenu(applicantID, memberIdx)
+				local name, class, localizedClass, level, itemLevel, honorLevel, tank, healer, damage, assignedRole = C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx);
+				local id, status, pendingStatus, numMembers, isNew, comment = C_LFGList.GetApplicantInfo(applicantID);
+				LFG_LIST_APPLICANT_MEMBER_MENU[1].text = name or " ";
+				LFG_LIST_APPLICANT_MEMBER_MENU[2].arg1 = name;
+				LFG_LIST_APPLICANT_MEMBER_MENU[2].disabled = not name or (status ~= "applied" and status ~= "invited");
+				LFG_LIST_APPLICANT_MEMBER_MENU[3].menuList[1].arg1 = applicantID;
+				LFG_LIST_APPLICANT_MEMBER_MENU[3].menuList[1].arg2 = memberIdx;
+				LFG_LIST_APPLICANT_MEMBER_MENU[3].menuList[2].arg1 = applicantID;
+				LFG_LIST_APPLICANT_MEMBER_MENU[3].menuList[2].disabled = (comment == "");
+				LFG_LIST_APPLICANT_MEMBER_MENU[4].arg1 = name;
+				LFG_LIST_APPLICANT_MEMBER_MENU[4].arg2 = applicantID;
+				LFG_LIST_APPLICANT_MEMBER_MENU[4].disabled = not name;
+				LFG_LIST_APPLICANT_MEMBER_MENU[5].arg1 = name
+				return LFG_LIST_APPLICANT_MEMBER_MENU;
+			end
+			function OnClick(self, button)
+				if button == "RightButton" then
+					if addonConfig.showDropDownCopyURL == false then
+						return
+					end
+					if self.resultID then
+						CloseDropDownMenus()
+						EasyMenu(LFGListUtil_GetSearchEntryMenu(self.resultID), LFGListFrameDropDown, self, 290, -2, "MENU")
+					elseif self.memberIdx then
+						CloseDropDownMenus()
+						EasyMenu(LFGListUtil_GetApplicantMemberMenu(self:GetParent().applicantID, self.memberIdx), LFGListFrameDropDown, self, 60, -5, "MENU")
+					end
+				end
+			end
+			-- execute delayed hooks
+			for i = 1, 14 do
+				local b = _G["LFGListApplicationViewerScrollFrameButton" .. i]
+				b:HookScript("OnEnter", OnEnter)
+				b:HookScript("OnLeave", OnLeave)
+				b:HookScript("OnClick", OnClick)
+			end
+			for i = 1, 10 do
+				local b = _G["LFGListSearchPanelScrollFrameButton" .. i]
+				b:HookScript("OnClick", OnClick)
+			end
 			-- UnempoweredCover blocking removal
 			do
 				local f = LFGListFrame.ApplicationViewer.UnempoweredCover
@@ -974,22 +1115,24 @@ do
 
 	-- DropDownMenu
 	uiHooks[#uiHooks + 1] = function()
-		local append = {
-			"PARTY",
-			"PLAYER",
-			"RAID_PLAYER",
-			"RAID",
-			"FRIEND",
-			"BN_FRIEND",
-			"GUILD",
-			"CHAT_ROSTER",
-			"ARENAENEMY",
-			"WORLD_STATE_SCORE",
-		}
-		for i = 1, #append do
-			local key = append[i]
-			local options = UnitPopupMenus[key]
-			table.insert(options, #options - 1, "RAIDERIO_COPY_URL")
+		if addonConfig.showDropDownCopyURL ~= false then
+			local append = {
+				"PARTY",
+				"PLAYER",
+				"RAID_PLAYER",
+				"RAID",
+				"FRIEND",
+				"BN_FRIEND",
+				"GUILD",
+				"CHAT_ROSTER",
+				"ARENAENEMY",
+				"WORLD_STATE_SCORE",
+			}
+			for i = 1, #append do
+				local key = append[i]
+				local options = UnitPopupMenus[key]
+				table.insert(options, #options - 1, "RAIDERIO_COPY_URL")
+			end
 		end
 		return 1
 	end

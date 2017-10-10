@@ -13,7 +13,8 @@ local addonConfig = {
 	enableWhoMessages = false,
 	enableGuildTooltips = false,
 	enableKeystoneTooltips = false,
-	showTooltipSpacing = true, -- not really needed I guess, deprecate it from this table?
+	showPrevAllScore = true,
+	showDropDownCopyURL = true,
 }
 
 -- constants
@@ -308,6 +309,8 @@ local function InitConfig()
 		config:CreateOptionToggle("Who Results", "Show Mythic+ Score in the chat when you Who someone specific.", "enableWhoMessages")
 		config:CreateOptionToggle("Guild Tooltips", "Show Mythic+ Score when you mouseover guild members in the guild roster.", "enableGuildTooltips")
 		config:CreateOptionToggle("Keystone Tooltips", "Adds Keystone information to Keystone tooltips. Suggests a Mythic+ Score for the group.", "enableKeystoneTooltips")
+		config:CreateOptionToggle("Show Prev Season Score", "Shows the previous season score if the players current score is lower than before.", "showPrevAllScore")
+		config:CreateOptionToggle("Show Profile URL", "Shows the Raider.IO URL to a players profile in the dropdown menu when you right-click players.", "showDropDownCopyURL")
 
 		-- add save button and cancel buttons
 		local buttons = config:CreateWidget("Frame", 4)
@@ -557,7 +560,7 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName)
 	local profile = GetScore(arg1)
 	if profile then
 		-- add padding line if it looks nicer on the tooltip, also respect users preference
-		if not forceNoPadding and addonConfig.showTooltipSpacing then
+		if not forceNoPadding then
 			tooltip:AddLine(" ")
 		end
 
@@ -591,7 +594,7 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName)
 			end
 		end
 
-		if profile.prevAllScore > profile.allScore then
+		if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
 			-- TODO: read previous season
 			tooltip:AddDoubleLine("Previous Season Score", profile.prevAllScore, 0.8, 0.8, 0.8, GetScoreColor(profile.prevAllScore))
 		end
@@ -642,6 +645,71 @@ end
 
 -- define our UI hooks
 do
+	-- copy profile link from dropdown menu
+	local function CopyURLForNameAndRealm(...)
+		local name, realm = GetNameAndRealm(...)
+		local realmSlug = GetRealmSlug(realm)
+		local region = REGIONS[GetCurrentRegion()]
+		local url = format("https://raider.io/characters/%s/%s/%s", region, realmSlug, name)
+		if IsModifiedClick("CHATLINK") then
+			local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
+			editBox:HighlightText()
+		else
+			StaticPopup_Show("RAIDERIO_COPY_URL", format("%s (%s)", name, realm), url)
+		end
+	end
+
+	_G.StaticPopupDialogs["RAIDERIO_COPY_URL"] = {
+		text = "%s",
+		button2 = CLOSE,
+		hasEditBox = true,
+		hasWideEditBox = true,
+		editBoxWidth = 350,
+		preferredIndex = 3,
+		timeout = 0,
+		whileDead = true,
+		hideOnEscape = true,
+		OnShow = function(self)
+			self:SetWidth(420)
+			local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"]
+			editBox:SetText(self.text.text_arg2)
+			editBox:SetFocus()
+			editBox:HighlightText(false)
+			local button = _G[self:GetName() .. "Button2"]
+			button:ClearAllPoints()
+			button:SetWidth(200)
+			button:SetPoint("CENTER", editBox, "CENTER", 0, -30)
+		end,
+		EditBoxOnEscapePressed = function(self)
+			self:GetParent():Hide()
+		end,
+		OnHide = function() end,
+		OnAccept = function() end,
+		OnCancel = function() end
+	}
+
+	_G.UnitPopupButtons["RAIDERIO_COPY_URL"] = {
+		text = "Copy Raider.IO Link",
+		dist = 0,
+		func = function()
+			local dropdownFrame = UIDROPDOWNMENU_INIT_MENU
+			local name, realm = dropdownFrame.name, dropdownFrame.server
+			if name then
+				CopyURLForNameAndRealm(name, realm)
+			end
+		end
+	}
+
+	hooksecurefunc("UnitPopup_ShowMenu", function(dropdownMenu, which, unit, name, userData, ...)
+		for i = 1, UIDROPDOWNMENU_MAXBUTTONS do
+			local button = _G["DropDownList" .. UIDROPDOWNMENU_MENU_LEVEL .. "Button" .. i]
+			if button.value == "RAIDERIO_COPY_URL" then
+				button.func = _G.UnitPopupButtons["RAIDERIO_COPY_URL"].func
+				break
+			end
+		end
+	end)
+
 	-- GameTooltip
 	uiHooks[#uiHooks + 1] = function()
 		GameTooltip:HookScript("OnTooltipSetUnit", function(self)
@@ -656,37 +724,27 @@ do
 	-- LFG
 	uiHooks[#uiHooks + 1] = function()
 		if _G.LFGListApplicationViewerScrollFrameButton1 then
-			_G.StaticPopupDialogs["RAIDERIO_COPY_URL"] = {
-				text = "%s",
-				button2 = CLOSE,
-				hasEditBox = true,
-				hasWideEditBox = true,
-				editBoxWidth = 350,
-				preferredIndex = 3,
-				timeout = 0,
-				whileDead = true,
-				hideOnEscape = true,
-				OnShow = function(self)
-					self:SetWidth(420)
-					local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"]
-					editBox:SetText(self.text.text_arg2)
-					editBox:SetFocus()
-					editBox:HighlightText(false)
-					local button = _G[self:GetName() .. "Button2"]
-					button:ClearAllPoints()
-					button:SetWidth(200)
-					button:SetPoint("CENTER", editBox, "CENTER", 0, -30)
-				end,
-				EditBoxOnEscapePressed = function(self)
-					self:GetParent():Hide()
-				end,
-				OnHide = function() end,
-				OnAccept = function() end,
-				OnCancel = function() end
-			}
 			local hooked = {}
-			local OnEnter, OnLeave, OnDoubleClick
+			local OnEnter, OnLeave, OnGroupOrApplicantClick
 			-- application queue
+			local groupOrApplicant = {
+				notCheckable = true,
+				text = "Copy Raider.IO Link",
+				func = function(self)
+					local parent = self.arg1
+					if parent then
+						local _, fullName
+						if parent.resultID then
+							_, _, _, _, _, _, _, _, _, _, _, _, fullName = C_LFGList.GetSearchResultInfo(parent.resultID)
+						elseif parent.memberIdx then
+							fullName = C_LFGList.GetApplicantMemberInfo(parent:GetParent().applicantID, parent.memberIdx)
+						end
+						if fullName then
+							CopyURLForNameAndRealm(fullName)
+						end
+					end
+				end
+			}
 			function OnEnter(self)
 				if addonConfig.enableLFGTooltips == false then
 					return
@@ -698,8 +756,7 @@ do
 							hooked[b] = 1
 							b:HookScript("OnEnter", OnEnter)
 							b:HookScript("OnLeave", OnLeave)
-							--b:HookScript("OnDoubleClick", OnDoubleClick)
-							--b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+							-- b:HookScript("OnClick", OnGroupOrApplicantClick)
 						end
 					end
 				elseif self.memberIdx then
@@ -718,26 +775,20 @@ do
 					GameTooltip:Hide()
 				end
 			end
-			function OnDoubleClick(self, button)
-				if button == "LeftButton" then
-					local _, fullName
-					if self.resultID then
-						_, _, _, _, _, _, _, _, _, _, _, _, fullName = C_LFGList.GetSearchResultInfo(self.resultID)
-					elseif self.memberIdx then
-						fullName = C_LFGList.GetApplicantMemberInfo(self:GetParent().applicantID, self.memberIdx)
-					end
-					if fullName then
-						local name, realm = GetNameAndRealm(fullName)
-						local realmSlug = GetRealmSlug(realm)
-						local region = REGIONS[GetCurrentRegion()]
-						local url = format("https://raider.io/characters/%s/%s/%s", region, realmSlug, name)
-						if IsModifiedClick("CHATLINK") then
-							local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
-							editBox:HighlightText()
-						else
-							StaticPopup_Show("RAIDERIO_COPY_URL", format("%s (%s)", name, realm), url)
-						end
+			-- TODO: WIP
+			function OnGroupOrApplicantClick(self, button)
+				if button == "RightButton" then
+					local list = LFGListFrameDropDown.menuList
+					local last = list[#list]
+					groupOrApplicant.index = last.index + 1
+					groupOrApplicant.arg1 = self
+					if last ~= groupOrApplicant then
+						local info = { dist = 0, text = " ", disabled = true, isTitle = true, isUninteractable = true, notCheckable = true, iconOnly = true, icon = "Interface\\Common\\UI-TooltipDivider-Transparent", tCoordLeft = 0, tCoordRight = 0, tCoordTop = 0, tCoordBottom = 0, tSizeX = 0, tSizeY = 0, tFitDropDownSizeX = true }
+						info.iconInfo = { tCoordLeft = info.tCoordLeft, tCoordRight = info.tCoordRight, tCoordTop = info.tCoordTop, tCoordBottom = info.tCoordBottom, tSizeX = info.tSizeX, tSizeY = info.tSizeY, tFitDropDownSizeX = info.tFitDropDownSizeX }
+						list[#list + 1] = info
+						list[#list + 1] = groupOrApplicant
 						CloseDropDownMenus()
+						self:GetScript("OnClick")(self, "RightButton")
 					end
 				end
 			end
@@ -745,8 +796,7 @@ do
 				local b = _G["LFGListApplicationViewerScrollFrameButton" .. i]
 				b:HookScript("OnEnter", OnEnter)
 				b:HookScript("OnLeave", OnLeave)
-				--b:HookScript("OnDoubleClick", OnDoubleClick)
-				--b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+				-- b:HookScript("OnClick", OnGroupOrApplicantClick)
 			end
 			-- search results
 			local function SetSearchEntryTooltip(tooltip, resultID, autoAcceptOption)
@@ -756,11 +806,10 @@ do
 				end
 			end
 			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
-			for i = 1, 10 do
-				local b = _G["LFGListSearchPanelScrollFrameButton" .. i]
-				--b:HookScript("OnDoubleClick", OnDoubleClick)
-				--b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-			end
+			-- for i = 1, 10 do
+			-- 	local b = _G["LFGListSearchPanelScrollFrameButton" .. i]
+			-- 	b:HookScript("OnClick", OnGroupOrApplicantClick)
+			-- end
 			-- UnempoweredCover blocking removal
 			do
 				local f = LFGListFrame.ApplicationViewer.UnempoweredCover
@@ -768,10 +817,6 @@ do
 				f:EnableMouseWheel(false)
 				f:SetToplevel(false)
 			end
-			-- GroupDropDown
-			-- ActivityDropDown
-			-- LFGListSearchEntry_OnClick
-			-- LFGListSearchPanel.ScrollFrame.Button1
 			return 1
 		end
 	end
@@ -864,7 +909,7 @@ do
 			text = ""
 
 			-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
-			if profile.prevAllScore > profile.allScore then
+			if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
 				text = text .. "Raider|cffFFFFFF|r.IO M+ Score: " .. profile.allScore .. " (Prev. Season: " .. profile.prevAllScore .. "). "
 			elseif profile.allScore > 0 or profile.isMultiRole then
 				text = text .. "Raider|cffFFFFFF|r.IO M+ Score: " .. profile.allScore .. ". "
@@ -927,6 +972,28 @@ do
 		return 1
 	end
 
+	-- DropDownMenu
+	uiHooks[#uiHooks + 1] = function()
+		local append = {
+			"PARTY",
+			"PLAYER",
+			"RAID_PLAYER",
+			"RAID",
+			"FRIEND",
+			"BN_FRIEND",
+			"GUILD",
+			"CHAT_ROSTER",
+			"ARENAENEMY",
+			"WORLD_STATE_SCORE",
+		}
+		for i = 1, #append do
+			local key = append[i]
+			local options = UnitPopupMenus[key]
+			table.insert(options, #options - 1, "RAIDERIO_COPY_URL")
+		end
+		return 1
+	end
+
 	-- Keystone GameTooltip + ItemRefTooltip
 	--[=[
 	uiHooks[#uiHooks + 1] = function()
@@ -951,8 +1018,6 @@ do
 		return 1
 	end
 	--]=]
-
-	-- WorldStateScoreButton1
 end
 
 -- register events and wait for the addon load event to fire

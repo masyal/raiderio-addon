@@ -4,6 +4,15 @@ local uiHooks = {}
 local profileCache = {}
 local configFrame
 
+-- micro-optimization for more speed
+local lshift = bit.lshift
+local rshift = bit.rshift
+local band = bit.band
+local PAYLOAD_BITS = 13
+local PAYLOAD_BITS2 = PAYLOAD_BITS * 2
+local PAYLOAD_BITS3 = PAYLOAD_BITS * 3
+local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
+
 -- default config
 local addonConfig = {
 	enableUnitTooltips = true,
@@ -63,9 +72,9 @@ local function ApplyHooks()
 end
 
 -- adds data provider to RaiderIO (only to be used by the other database modules)
-local function AddProvider(_, data)
+local function AddProvider(data)
 	-- make sure the object is what we expect it to be like
-	assert(type(data.region) == "string" and type(data.faction) == "number" and type(data.db) == "table", "Raider.IO has been requested to load a database that isn't supported.")
+	assert(type(data) == "table" and type(data.region) == "string" and type(data.faction) == "number" and type(data.db) == "table" and type(data.lookup) == "table", "Raider.IO has been requested to load a database that isn't supported.")
 	-- append provider to the table
 	dataProviders[#dataProviders + 1] = data
 end
@@ -439,13 +448,25 @@ local function GetFaction(unit)
 	end
 end
 
+-- unpack the payload
+local function UnpackPayload(data)
+	return 
+		band(rshift(data, 0), PAYLOAD_MASK),
+		band(rshift(data, PAYLOAD_BITS), PAYLOAD_MASK),
+		band(rshift(data, PAYLOAD_BITS2), PAYLOAD_MASK),
+		band(rshift(data, PAYLOAD_BITS3), PAYLOAD_MASK)
+end
+
 -- caches the profile table and returns one using keys
-local function CacheProviderData(provider, name, realm, profile)
-	local cache = profileCache[profile]
+local function CacheProviderData(provider, name, realm, index, data1, data2)
+	local cache = profileCache[index]
 	-- prefer to re-use cached profiles
 	if cache then
 		return cache
 	end
+	-- unpack the payloads into these tables
+	data1 = {UnpackPayload(data1)}
+	data2 = {UnpackPayload(data2)}
 	-- TODO: can we make this table read-only? raw methods will buypass metatable restrictions we try to enforce
 	-- build this custom table in order to avoid users tainting the provider database
 	cache = {
@@ -455,26 +476,26 @@ local function CacheProviderData(provider, name, realm, profile)
 		name = name,
 		realm = realm,
 		-- data from Raider.IO
-		roleMask = profile[1],
-		allScore = profile[2],
-		prevAllScore = profile[3]
+		roleMask = data1[1],
+		allScore = data1[2],
+		prevAllScore = data1[3]
 	}
 	-- extract the scores per role combination (very ugly, but if-else is probably most efficient... given the amount of valid role combinations)
 	local tankScore, healScore, dpsScore = 0, 0, 0
 	if cache.roleMask == ROLE_MASK.TANK then
-		tankScore = profile[2]
+		tankScore = data1[2]
 	elseif cache.roleMask == ROLE_MASK.HEALER then
-		healScore = profile[2]
+		healScore = data1[2]
 	elseif cache.roleMask == ROLE_MASK.DPS then
-		dpsScore = profile[2]
+		dpsScore = data1[2]
 	elseif cache.roleMask == ROLE_COMBOS.TANK_HEALER then
-		tankScore, healScore = profile[4], profile[5]
+		tankScore, healScore = data2[1], data2[2]
 	elseif cache.roleMask == ROLE_COMBOS.TANK_DPS then
-		tankScore, dpsScore = profile[4], profile[5]
+		tankScore, dpsScore = data2[1], data2[2]
 	elseif cache.roleMask == ROLE_COMBOS.HEALER_DPS then
-		healScore, dpsScore = profile[4], profile[5]
+		healScore, dpsScore = data2[1], data2[2]
 	elseif cache.roleMask == ROLE_COMBOS.TANK_HEALER_DPS then
-		tankScore, healScore, dpsScore = profile[4], profile[5], profile[6]
+		tankScore, healScore, dpsScore = data2[1], data2[2], data2[3]
 	end
 	-- append per role scores
 	cache.tankScore, cache.healScore, cache.dpsScore = tankScore, healScore, dpsScore
@@ -491,7 +512,7 @@ local function CacheProviderData(provider, name, realm, profile)
 		cache.primaryRole = ROLE_MASK.HEALER
 	end
 	-- store it in the profile cache
-	profileCache[profile] = cache
+	profileCache[index] = cache
 	-- return the freshly generated table
 	return cache
 end
@@ -515,7 +536,7 @@ local function GetProviderData(name, realm, faction)
 
 				-- does the profile exist?
 				if d then
-					return CacheProviderData(p, name, realm, d)
+					return CacheProviderData(p, name, realm, d, p.lookup[d], p.lookup[d + 1])
 				end
 			end
 		end

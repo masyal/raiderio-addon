@@ -1,9 +1,24 @@
 ## Interface: 70200
 ## Title: Raider.IO Mythic Plus
 ## Notes: Shows Raider.IO Mythic+ Scores in-game. Make sure to load one or more region DB.
-## Author: Aspyr and Vladiniator
+## Author: Aspyr and Vladinator (Cyan-Darksorrow)
 ## Version: 7.2.5 (@project-version@)
 ## SavedVariables: RaiderIO_Config
+## X-Website: https://raider.io
+
 db/db_realms.lua
 db/db_score_tiers.lua
+
+locale/locale.lua
+locale/enUS.lua
+locale/deDE.lua
+locale/esES.lua
+locale/frFR.lua
+locale/itIT.lua
+locale/koKR.lua
+locale/ptBR.lua
+locale/ruRU.lua
+locale/zhCN.lua
+locale/zhTW.lua
+
 core.lua

@@ -294,6 +294,7 @@ local function InitConfig()
 		-- add widgets
 		local header = config:CreateHeadline("Raider.IO Mythic+ Options")
 		header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
+
 		config:CreateHeadline("Mythic Plus Scores")
 		config:CreateOptionToggle("Show on Player Units", "Show Mythic+ Score when you mouseover player units.", "enableUnitTooltips")
 		config:CreateOptionToggle("Show in Dungeon Finder", "Show Mythic+ Score when you mouseover groups or applicants.", "enableLFGTooltips")
@@ -457,13 +458,16 @@ end
 -- caches the profile table and returns one using keys
 local function CacheProviderData(provider, name, realm, index, data1, data2)
 	local cache = profileCache[index]
+
 	-- prefer to re-use cached profiles
 	if cache then
 		return cache
 	end
+
 	-- unpack the payloads into these tables
 	data1 = {UnpackPayload(data1)}
 	data2 = {UnpackPayload(data2)}
+
 	-- TODO: can we make this table read-only? raw methods will bypass metatable restrictions we try to enforce
 	-- build this custom table in order to avoid users tainting the provider database
 	cache = {
@@ -472,13 +476,13 @@ local function CacheProviderData(provider, name, realm, index, data1, data2)
 		date = provider.date,
 		name = name,
 		realm = realm,
-		-- data from Raider.IO backend
+		-- current and last season overall score
 		allScore = data1[1],
 		prevAllScore = data1[2],
-		-- extract the scores per role combination
+		-- extract the scores per role
 		tankScore = data2[1],
 		healScore = data2[2],
-		dpsScore = data2[3],
+		dpsScore = data2[3]
 	}
 
 	-- append additional role information
@@ -487,6 +491,7 @@ local function CacheProviderData(provider, name, realm, index, data1, data2)
 
 	-- store it in the profile cache
 	profileCache[index] = cache
+
 	-- return the freshly generated table
 	return cache
 end
@@ -531,12 +536,13 @@ end
 
 -- returns score color using item colors
 local function GetScoreColor(score)
-	local r, g, b = 0.6, 0.6, 0.6		-- default color
+	local r, g, b = 0.6, 0.6, 0.6 -- default color
 	if SCORE_TIERS and type(score) == "number" then
 		for i = 1, #SCORE_TIERS do
-			if score >= SCORE_TIERS[i]["score"] then
-				local colors = SCORE_TIERS[i]["color"]
-				return colors[1], colors[2], colors[3]
+			local tier = SCORE_TIERS[i]
+			if score >= tier.score then
+				local color = tier.color
+				return color[1], color[2], color[3]
 			end
 		end
 	end
@@ -583,7 +589,6 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName)
 		end
 
 		if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
-			-- TODO: read previous season
 			tooltip:AddDoubleLine("Previous Season Score", profile.prevAllScore, 0.8, 0.8, 0.8, GetScoreColor(profile.prevAllScore))
 		end
 
@@ -595,16 +600,17 @@ end
 
 -- publicly exposed API
 _G.RaiderIO = {
-	-- Calling GetScore requires either a unit, or you to provide a name and realm, preferably also a faction, but it's optional.
+	-- Calling GetScore requires either a unit, or you to provide a name and realm, optionally also a faction. (1 = Alliance, 2 = Horde)
 	-- RaiderIO.GetScore(unit)
-	-- RaiderIO.GetScore("Name-Realm")
-	-- RaiderIO.GetScore("Name", "Realm")
-	-- RaiderIO.GetScore("Name-Realm", nil, 1|2) -- 1 = alliance, 2 = horde
-	-- RaiderIO.GetScore("Name", "Realm", 1|2) -- 1 = alliance, 2 = horde
+	-- RaiderIO.GetScore("Name-Realm"[, nil, 1|2])
+	-- RaiderIO.GetScore("Name", "Realm"[, 1|2])
 	GetScore = GetScore,
-	-- Please do not use the AddProvider method as it's only for internal RaiderIO use (loading the databases selected by the user)
-	AddProvider = AddProvider,
-	GetScoreColor = GetScoreColor
+	-- Calling GetFaction requires a unit and returns you 1 if it's Alliance, 2 if Horde, otherwise nil.
+	-- Calling GetScoreColor requires a Mythic+ score to be passed (a number value) and it returns r, g, b for that score.
+	-- RaiderIO.GetScoreColor(1234)
+	GetScoreColor = GetScoreColor,
+	-- Please do not use the AddProvider method as it's only for internal Raider.IO use (loading the databases selected by the user)
+	AddProvider = AddProvider
 }
 
 -- an addon has loaded, is it ours? is it some LOD addon we can hook?

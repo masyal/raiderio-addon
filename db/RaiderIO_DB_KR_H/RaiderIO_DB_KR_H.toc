@@ -1,9 +1,9 @@
 ## Interface: 70200
-## Title: Raider.IO Mythic+ (Korea: Horde)
-## Notes: Raider.IO Mythic Plus Scores DB for Korea / Horde. Updated nightly.
-## Author: Aspyr and Vladiniator
+## Title: Raider.IO Mythic Plus (Korea - Horde)
+## Notes: Raider.IO Mythic Plus Scores DB for Korea - Horde. Updated nightly.
+## Author: Aspyr and Vladinator (Cyan-Darksorrow)
 ## Dependencies: RaiderIO
-## DefaultState: disabled
+## DefaultState: enabled
 ## X-Region: Korea
 ## X-Faction: Horde
 ## X-Website: https://raider.io

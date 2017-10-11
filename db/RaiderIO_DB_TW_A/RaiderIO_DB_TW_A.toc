@@ -1,9 +1,9 @@
 ## Interface: 70200
-## Title: Raider.IO Mythic+ (Taiwan: Alliance)
-## Notes: Raider.IO Mythic Plus Scores DB for Taiwan / Alliance. Updated nightly.
-## Author: Aspyr and Vladiniator
+## Title: Raider.IO Mythic Plus (Taiwan - Alliance)
+## Notes: Raider.IO Mythic Plus Scores DB for Taiwan - Alliance. Updated nightly.
+## Author: Aspyr and Vladinator (Cyan-Darksorrow)
 ## Dependencies: RaiderIO
-## DefaultState: disabled
+## DefaultState: enabled
 ## X-Region: Taiwan
 ## X-Faction: Alliance
 ## X-Website: https://raider.io

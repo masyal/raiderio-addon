@@ -1,9 +1,9 @@
 ## Interface: 70200
-## Title: Raider.IO Mythic+ (Taiwan: Horde)
-## Notes: Raider.IO Mythic Plus Scores DB for Taiwan / Horde. Updated nightly.
-## Author: Aspyr and Vladiniator
+## Title: Raider.IO Mythic Plus (Taiwan - Horde)
+## Notes: Raider.IO Mythic Plus Scores DB for Taiwan - Horde. Updated nightly.
+## Author: Aspyr and Vladinator (Cyan-Darksorrow)
 ## Dependencies: RaiderIO
-## DefaultState: disabled
+## DefaultState: enabled
 ## X-Region: Taiwan
 ## X-Faction: Horde
 ## X-Website: https://raider.io

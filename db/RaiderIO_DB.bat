@@ -44,6 +44,9 @@ for %%r in (
 		echo ## X-Faction: !f2!>>"!f!"
 		echo ## X-Website: https:^/^/raider.io>>"!f!"
 		echo ../!toc_addon!/db/db_!lr!_!lf!.lua>>"!f!"
+		echo ../!toc_addon!/db/db_!lr!_!lf!1.lua>>"!f!"
+		echo ../!toc_addon!/db/db_!lr!_!lf!2.lua>>"!f!"
+		echo ../!toc_addon!/db/db_!lr!_!lf!3.lua>>"!f!"
 	)
 )
 goto end

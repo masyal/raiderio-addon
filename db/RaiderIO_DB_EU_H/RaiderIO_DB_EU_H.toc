@@ -8,3 +8,6 @@
 ## X-Faction: Horde
 ## X-Website: https://raider.io
 ../RaiderIO/db/db_eu_horde.lua
+../RaiderIO/db/db_eu_horde1.lua
+../RaiderIO/db/db_eu_horde2.lua
+../RaiderIO/db/db_eu_horde3.lua

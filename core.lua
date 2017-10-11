@@ -18,15 +18,16 @@ local addonConfig = {
 	enableUnitTooltips = true,
 	enableLFGTooltips = true,
 	enableLFGDropdown = true,
-	enableWhoTooltips = false,
-	enableWhoMessages = false,
-	enableGuildTooltips = false,
-	enableKeystoneTooltips = false,
+	enableWhoTooltips = true,
+	enableWhoMessages = true,
+	enableGuildTooltips = true,
+	enableKeystoneTooltips = true,
 	showPrevAllScore = true,
 	showDropDownCopyURL = true,
 }
 
 -- constants
+local L = ns.L
 local SCORE_TIERS = ns.scoreTiers
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local FACTION = {
@@ -63,17 +64,25 @@ end
 -- adds data provider to RaiderIO (only to be used by the other database modules)
 local function AddProvider(data)
 	-- make sure the object is what we expect it to be like
-	assert(type(data) == "table" and type(data.region) == "string" and type(data.faction) == "number" and type(data.db) == "table" and type(data.lookup) == "table", "Raider.IO has been requested to load a database that isn't supported.")
-	-- append provider to the table
-	dataProviders[#dataProviders + 1] = data
+	assert(type(data) == "table" and type(data.name) == "string" and type(data.region) == "string" and type(data.faction) == "number" and type(data.db) == "table" and type(data.lookup) == "table", "Raider.IO has been requested to load a database that isn't supported.")
+	-- is this provider relevant?
+	if GetCurrentRegion() == data.region then
+		-- append provider to the table
+		dataProviders[#dataProviders + 1] = data
+	else
+		-- disable the provider addon from loading in the future
+		DisableAddOn(data.name)
+		-- wipe the table to free up memory
+		table.wipe(data)
+	end
 end
 
 -- creates the config frame
 local function InitConfig()
 	_G.StaticPopupDialogs["RAIDERIO_RELOADUI_CONFIRM"] = {
-		text = "Your changes have been saved, but you must reload your interface for them to take effect.\r\n\r\nDo you wish to do that now?",
-		button1 = "Reload Now",
-		button2 = "I'll Reload Later",
+		text = L.CHANGES_REQUIRES_UI_RELOAD,
+		button1 = L.RELOAD_NOW,
+		button2 = L.RELOAD_LATER,
 		hasEditBox = false,
 		preferredIndex = 3,
 		timeout = 0,
@@ -114,7 +123,6 @@ local function InitConfig()
 
 	local function Save_OnClick()
 		Close_OnClick()
-		local name = UnitName("player")
 		local reload
 		for i = 1, #config.modules do
 			local f = config.modules[i]
@@ -123,11 +131,11 @@ local function InitConfig()
 			if checked then
 				if not loaded then
 					reload = 1
-					EnableAddOn(f.addon, name)
+					EnableAddOn(f.addon)
 				end
 			elseif loaded then
 				reload = 1
-				DisableAddOn(f.addon, name)
+				DisableAddOn(f.addon)
 			end
 		end
 		for i = 1, #config.options do
@@ -292,25 +300,25 @@ local function InitConfig()
 		configFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 
 		-- add widgets
-		local header = config:CreateHeadline("Raider.IO Mythic+ Options")
+		local header = config:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS)
 		header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
 
-		config:CreateHeadline("Mythic Plus Scores")
-		config:CreateOptionToggle("Show on Player Units", "Show Mythic+ Score when you mouseover player units.", "enableUnitTooltips")
-		config:CreateOptionToggle("Show in Dungeon Finder", "Show Mythic+ Score when you mouseover groups or applicants.", "enableLFGTooltips")
-		config:CreateOptionToggle("Show on Guild Roster", "Show Mythic+ Score when you mouseover guild members in the guild roster.", "enableGuildTooltips")
-		config:CreateOptionToggle("Show in \"Who\" UI", "Show Mythic+ Score when you mouseover in the Who results dialog.", "enableWhoTooltips")
-		config:CreateOptionToggle("Show in /who Results", "Show Mythic+ Score when you \"/who\" someone specific.", "enableWhoMessages")
+		config:CreateHeadline(L.MYTHIC_PLUS_SCORES)
+		config:CreateOptionToggle(L.SHOW_ON_PLAYER_UNITS, L.SHOW_ON_PLAYER_UNITS_DESC, "enableUnitTooltips")
+		config:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
+		config:CreateOptionToggle(L.SHOW_ON_GUILD_ROSTER, L.SHOW_ON_GUILD_ROSTER_DESC, "enableGuildTooltips")
+		config:CreateOptionToggle(L.SHOW_IN_WHO_UI, L.SHOW_IN_WHO_UI_DESC, "enableWhoTooltips")
+		config:CreateOptionToggle(L.SHOW_IN_SLASH_WHO_RESULTS, L.SHOW_IN_SLASH_WHO_RESULTS_DESC, "enableWhoMessages")
 
-		config:CreateHeadline("Tooltip Customization")
-		-- config:CreateOptionToggle("Keystone Tooltips", "Adds Keystone information to Keystone tooltips. Suggests a Mythic+ Score for the group.", "enableKeystoneTooltips")
-		config:CreateOptionToggle("Show Previous Season Score", "Shows the previous season score if the players current score is lower than before.", "showPrevAllScore")
+		config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)
+		-- config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
+		config:CreateOptionToggle(L.SHOW_PREV_SEASON_SCORE, L.SHOW_PREV_SEASON_SCORE_DESC, "showPrevAllScore")
 
-		config:CreateHeadline("Copy Raider.IO Profile URL")
-		config:CreateOptionToggle("Allow on Player Units", "Right-click player units to copy Raider.IO profile URL.", "showDropDownCopyURL")
-		config:CreateOptionToggle("Allow in Dungeon Finder", "Right-click groups or applicants in Dungeon Finder to copy Raider.IO profile URL.", "enableLFGDropdown")
+		config:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
+		config:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
+		config:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
 
-		config:CreateHeadline("Mythic Plus Database Modules")
+		config:CreateHeadline(L.MYTHIC_PLUS_DB_MODULES)
 		config:CreateModuleToggle("Americas - Alliance", "RaiderIO_DB_US_A")
 		config:CreateModuleToggle("Americas - Horde", "RaiderIO_DB_US_H")
 		config:CreateModuleToggle("Europe - Alliance", "RaiderIO_DB_EU_A")
@@ -354,7 +362,7 @@ local function InitConfig()
 		panel:Hide()
 
 		local button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-		button:SetText("Open Config")
+		button:SetText(L.OPEN_CONFIG)
 		button:SetWidth(button:GetTextWidth() + 18)
 		button:SetPoint("TOPLEFT", 16, -16)
 		button:SetScript("OnClick", function()
@@ -563,33 +571,33 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName)
 			tooltip:AddLine(profile.name .. " (" .. profile.realm .. ")", 1, 1, 1, false)
 		end
 
-		tooltip:AddDoubleLine("Raider.IO M+ Score", profile.allScore, 1, 0.85, 0, GetScoreColor(profile.allScore))
+		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, profile.allScore, 1, 0.85, 0, GetScoreColor(profile.allScore))
 
 		-- show tank, healer and dps scores
 		local scores = {}
 
 		if profile.tankScore then
-			scores[#scores + 1] = { "Tank Score", profile.tankScore }
+			scores[#scores + 1] = { L.TANK_SCORE, profile.tankScore }
 		end
 
 		if profile.healScore then
-			scores[#scores + 1] = { "Healer Score", profile.healScore }
+			scores[#scores + 1] = { L.HEALER_SCORE, profile.healScore }
 		end
 
 		if profile.dpsScore then
-			scores[#scores + 1] = { "DPS Score", profile.dpsScore }
+			scores[#scores + 1] = { L.DPS_SCORE, profile.dpsScore }
 		end
 
 		table.sort(scores, function (a, b) return a[2] > b[2] end)
 
 		for i = 1, #scores do
 			if scores[i][2] > 0 then
-				tooltip:AddDoubleLine(scores[i][1], scores[i][2] or "N/A", 1, 1, 1, GetScoreColor(scores[i][2]))
+				tooltip:AddDoubleLine(scores[i][1], scores[i][2], 1, 1, 1, GetScoreColor(scores[i][2]))
 			end
 		end
 
 		if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
-			tooltip:AddDoubleLine("Previous Season Score", profile.prevAllScore, 0.8, 0.8, 0.8, GetScoreColor(profile.prevAllScore))
+			tooltip:AddDoubleLine(L.PREV_SEASON_SCORE, profile.prevAllScore, 0.8, 0.8, 0.8, GetScoreColor(profile.prevAllScore))
 		end
 
 		tooltip:Show()
@@ -682,7 +690,7 @@ do
 	}
 
 	_G.UnitPopupButtons["RAIDERIO_COPY_URL"] = {
-		text = "Copy Raider.IO URL",
+		text = L.COPY_RAIDERIO_URL,
 		dist = 0,
 		func = function()
 			local dropdownFrame = UIDROPDOWNMENU_INIT_MENU
@@ -1040,24 +1048,24 @@ do
 
 			-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
 			if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
-				text = text .. "Raider|cffFFFFFF|r.IO M+ Score: " .. profile.allScore .. " (Prev. Season: " .. profile.prevAllScore .. "). "
+				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. " (" .. L.PREV_SEASON_COLON .. profile.prevAllScore .. "). "
 			elseif profile.allScore > 0 then
-				text = text .. "Raider|cffFFFFFF|r.IO M+ Score: " .. profile.allScore .. ". "
+				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. ". "
 			end
 
 			-- show tank, healer and dps scores
 			local scores = {}
 
 			if profile.tankScore then
-				scores[#scores + 1] = { "Tank", profile.tankScore }
+				scores[#scores + 1] = { L.TANK, profile.tankScore }
 			end
 
 			if profile.healScore then
-				scores[#scores + 1] = { "Healer", profile.healScore }
+				scores[#scores + 1] = { L.HEALER, profile.healScore }
 			end
 
 			if profile.dpsScore then
-				scores[#scores + 1] = { "DPS", profile.dpsScore }
+				scores[#scores + 1] = { L.DPS, profile.dpsScore }
 			end
 
 			table.sort(scores, function (a, b) return a[2] > b[2] end)

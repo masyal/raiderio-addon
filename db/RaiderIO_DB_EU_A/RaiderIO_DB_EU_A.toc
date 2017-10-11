@@ -8,3 +8,6 @@
 ## X-Faction: Alliance
 ## X-Website: https://raider.io
 ../RaiderIO/db/db_eu_alliance.lua
+../RaiderIO/db/db_eu_alliance1.lua
+../RaiderIO/db/db_eu_alliance2.lua
+../RaiderIO/db/db_eu_alliance3.lua

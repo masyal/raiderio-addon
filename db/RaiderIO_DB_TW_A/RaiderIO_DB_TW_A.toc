@@ -7,7 +7,5 @@
 ## X-Region: Taiwan
 ## X-Faction: Alliance
 ## X-Website: https://raider.io
-../RaiderIO/db/db_tw_alliance.lua
-../RaiderIO/db/db_tw_alliance1.lua
-../RaiderIO/db/db_tw_alliance2.lua
-../RaiderIO/db/db_tw_alliance3.lua
+../RaiderIO/db/db_tw_alliance_characters.lua
+../RaiderIO/db/db_tw_alliance_lookup.lua

@@ -7,7 +7,5 @@
 ## X-Region: Europe
 ## X-Faction: Horde
 ## X-Website: https://raider.io
-../RaiderIO/db/db_eu_horde.lua
-../RaiderIO/db/db_eu_horde1.lua
-../RaiderIO/db/db_eu_horde2.lua
-../RaiderIO/db/db_eu_horde3.lua
+../RaiderIO/db/db_eu_horde_characters.lua
+../RaiderIO/db/db_eu_horde_lookup.lua

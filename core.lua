@@ -1,8 +1,8 @@
 local addonName, ns = ...
-local dataProviders = {}
 local uiHooks = {}
 local profileCache = {}
 local configFrame
+local dataProvider
 
 -- micro-optimization for more speed
 local lshift = bit.lshift
@@ -28,6 +28,50 @@ local addonConfig = {
 
 -- constants
 local L = ns.L
+
+--TEMP TEMP UNTIL LOCALE FIXED
+L = {}
+L.LOCALE_NAME = "enUS"
+L.CHANGES_REQUIRES_UI_RELOAD = "Your changes have been saved, but you must reload your interface for them to take effect.\r\n\r\nDo you wish to do that now?"
+L.RELOAD_NOW = "Reload Now"
+L.RELOAD_LATER = "I'll Reload Later"
+L.RAIDERIO_MYTHIC_OPTIONS = "Raider.IO Mythic+ Options"
+L.MYTHIC_PLUS_SCORES = "Mythic Plus Scores"
+L.SHOW_ON_PLAYER_UNITS = "Show on Player Units"
+L.SHOW_ON_PLAYER_UNITS_DESC = "Show Mythic+ Score when you mouseover player units."
+L.SHOW_IN_LFD = "Show in Dungeon Finder"
+L.SHOW_IN_LFD_DESC = "Show Mythic+ Score when you mouseover groups or applicants."
+L.SHOW_ON_GUILD_ROSTER = "Show on Guild Roster"
+L.SHOW_ON_GUILD_ROSTER_DESC = "Show Mythic+ Score when you mouseover guild members in the guild roster."
+L.SHOW_IN_WHO_UI = "Show in \"Who\" UI"
+L.SHOW_IN_WHO_UI_DESC = "Show Mythic+ Score when you mouseover in the Who results dialog."
+L.SHOW_IN_SLASH_WHO_RESULTS = "Show in /who Results"
+L.SHOW_IN_SLASH_WHO_RESULTS_DESC = "Show Mythic+ Score when you \"/who\" someone specific."
+L.TOOLTIP_CUSTOMIZATION = "Tooltip Customization"
+L.SHOW_KEYSTONE_INFO = "Show Keystone Info"
+L.SHOW_KEYSTONE_INFO_DESC = "Adds Keystone information to Keystone tooltips. Suggests a Mythic+ Score for the group."
+L.SHOW_PREV_SEASON_SCORE = "Show Previous Season Score"
+L.SHOW_PREV_SEASON_SCORE_DESC = "Shows the previous season score if the players current score is lower than before."
+L.COPY_RAIDERIO_PROFILE_URL = "Copy Raider.IO Profile URL"
+L.ALLOW_ON_PLAYER_UNITS = "Allow on Player Units"
+L.ALLOW_ON_PLAYER_UNITS_DESC = "Right-click player units to copy Raider.IO profile URL."
+L.ALLOW_IN_LFD = "Allow in Dungeon Finder"
+L.ALLOW_IN_LFD_DESC = "Right-click groups or applicants in Dungeon Finder to copy Raider.IO profile URL."
+L.MYTHIC_PLUS_DB_MODULES = "Mythic Plus Database Modules"
+L.OPEN_CONFIG = "Open Config"
+L.RAIDERIO_MP_SCORE = "Raider.IO M+ Score"
+L.TANK_SCORE = "Tank Score"
+L.HEALER_SCORE = "Healer Score"
+L.DPS_SCORE = "DPS Score"
+L.PREV_SEASON_SCORE = "Previous Season Score"
+L.COPY_RAIDERIO_URL = "Copy Raider.IO URL"
+L.RAIDERIO_MP_SCORE_COLON = "Raider.IO M+ Score: "
+L.PREV_SEASON_COLON = "Prev. Season: "
+L.TANK = "Tank"
+L.HEALER = "Healer"
+L.DPS = "DPS"
+--TEMP TEMP UNTIL LOCALE FIXED
+
 local SCORE_TIERS = ns.scoreTiers
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local FACTION = {
@@ -64,11 +108,18 @@ end
 -- adds data provider to RaiderIO (only to be used by the other database modules)
 local function AddProvider(data)
 	-- make sure the object is what we expect it to be like
-	assert(type(data) == "table" and type(data.name) == "string" and type(data.region) == "string" and type(data.faction) == "number" and type(data.db) == "table" and type(data.lookup) == "table", "Raider.IO has been requested to load a database that isn't supported.")
+	assert(type(data) == "table" and type(data.name) == "string" and type(data.region) == "string" and type(data.faction) == "number", "Raider.IO has been requested to load a database that isn't supported.")
 	-- is this provider relevant?
-	if GetCurrentRegion() == data.region then
+	if REGIONS[GetCurrentRegion()] == data.region then
 		-- append provider to the table
-		dataProviders[#dataProviders + 1] = data
+		if dataProvider then
+			if not dataProvider.db1 then dataProvider.db1 = data.db1 end
+			if not dataProvider.db2 then dataProvider.db2 = data.db2 end
+			if not dataProvider.lookup1 then dataProvider.lookup1 = data.lookup1 end
+			if not dataProvider.lookup2 then dataProvider.lookup2 = data.lookup2 end
+		else
+			dataProvider = data
+		end
 	else
 		-- disable the provider addon from loading in the future
 		DisableAddOn(data.name)
@@ -464,7 +515,7 @@ local function UnpackPayload(data)
 end
 
 -- caches the profile table and returns one using keys
-local function CacheProviderData(provider, name, realm, index, data1, data2)
+local function CacheProviderData(name, realm, index, data1, data2)
 	local cache = profileCache[index]
 
 	-- prefer to re-use cached profiles
@@ -479,9 +530,9 @@ local function CacheProviderData(provider, name, realm, index, data1, data2)
 	-- TODO: can we make this table read-only? raw methods will bypass metatable restrictions we try to enforce
 	-- build this custom table in order to avoid users tainting the provider database
 	cache = {
-		region = provider.region,
-		faction = provider.faction,
-		date = provider.date,
+		region = dataProvider.region,
+		faction = dataProvider.faction,
+		date = dataProvider.date,
 		name = name,
 		realm = realm,
 		-- current and last season overall score
@@ -504,41 +555,46 @@ local function CacheProviderData(provider, name, realm, index, data1, data2)
 	return cache
 end
 
--- returns the profile of a given character, faction is optional but recommended for quicker lookups
-local function GetProviderData(name, realm, faction)
-	local c = #dataProviders
-	local p, r, d
-
-	-- iterate each provider
-	for i = 1, c do
-		p = dataProviders[i]
-
-		-- only scan the db if the provider contains data for the requested faction
-		if not faction or faction == p.faction then
-			r = p.db[realm]
-
-			-- does the realm exist?
-			if r then
-				d = r[name]
-
-				-- does the profile exist?
-				if d then
-					return CacheProviderData(p, name, realm, d, p.lookup[d], p.lookup[d + 1])
-				end
-			end
-		end
-	end
-end
-
 -- retrieves the profile of a given unit, or name+realm query
 local function GetScore(arg1, arg2, forceFaction)
+	if not dataProvider then
+		return
+	end
 	local name, realm, unit = GetNameAndRealm(arg1, arg2)
 	if name and realm then
 		-- no need to lookup lowbies for a score
 		if unit and (UnitLevel(unit) or 0) < MAX_LEVEL then
 			return
 		end
-		return GetProviderData(name, realm, type(forceFaction) == "number" and forceFaction or GetFaction(unit))
+		local faction = type(forceFaction) == "number" and forceFaction or GetFaction(unit)
+		if faction then
+			local db, lookup = dataProvider["db" .. faction], dataProvider["lookup" .. faction]
+			if not db or not lookup then
+				return
+			end
+			local r = db[realm]
+			if r then
+				local ofs = r[name]
+				if ofs then
+					return CacheProviderData(name, realm, ofs, lookup[ofs], lookup[ofs + 1])
+				end
+			end
+		else
+			-- FIXME: is there a better way we should be doing this if there is no faction?
+			for faction = 1, 2 do
+				local db, lookup = dataProvider["db" .. faction], dataProvider["lookup" .. faction]
+				if not db or not lookup then
+					return
+				end
+				local r = db[realm]
+				if r then
+					local ofs = r[name]
+					if ofs then
+						return CacheProviderData(name, realm, ofs, lookup[ofs], lookup[ofs + 1])
+					end
+				end
+			end
+		end
 	end
 end
 

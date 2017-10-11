@@ -27,21 +27,11 @@ local addonConfig = {
 }
 
 -- constants
+local SCORE_TIERS = ns.scoreTiers
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local FACTION = {
 	["Alliance"] = 1,
 	["Horde"] = 2,
-}
-local ROLE_MASK = {
-	TANK = 1,
-	HEALER = 2,
-	DPS = 4
-}
-local ROLE_COMBOS = {
-	TANK_HEALER = bit.bor(ROLE_MASK.TANK, ROLE_MASK.HEALER),
-	TANK_DPS = bit.bor(ROLE_MASK.TANK, ROLE_MASK.DPS),
-	TANK_HEALER_DPS = bit.bor(ROLE_MASK.TANK, ROLE_MASK.HEALER, ROLE_MASK.DPS),
-	HEALER_DPS = bit.bor(ROLE_MASK.HEALER, ROLE_MASK.DPS),
 }
 local REGIONS = {
 	"us",
@@ -52,7 +42,6 @@ local REGIONS = {
 }
 
 -- session constants
-local SCORES
 local PLAYER_FACTION
 
 -- create the addon core frame
@@ -82,9 +71,9 @@ end
 -- creates the config frame
 local function InitConfig()
 	_G.StaticPopupDialogs["RAIDERIO_RELOADUI_CONFIRM"] = {
-		text = "Your changes have been saved, but, you have changed the load state of at least one module, or toggled the URL-copy feature.\r\n\r\nThis means you have to reload your interface for changes to take effect.\r\n\r\nDo you wish to do it right now?",
-		button1 = "Reload now",
-		button2 = "I'll do it later",
+		text = "Your changes have been saved, but you must reload your interface for them to take effect.\r\n\r\nDo you wish to do that now?",
+		button1 = "Reload Now",
+		button2 = "I'll Reload Later",
 		hasEditBox = false,
 		preferredIndex = 3,
 		timeout = 0,
@@ -252,7 +241,7 @@ local function InitConfig()
 
 	-- customize the look and feel
 	do
-		configFrame:SetSize(256, 496)
+		configFrame:SetSize(280, 496)
 		configFrame:SetPoint("CENTER")
 		configFrame:SetFrameStrata("DIALOG")
 		configFrame:SetFrameLevel(255)
@@ -303,9 +292,24 @@ local function InitConfig()
 		configFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 
 		-- add widgets
-		local header = config:CreateHeadline(addonName .. " Configuration")
+		local header = config:CreateHeadline("Raider.IO Mythic+ Options")
 		header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
-		config:CreateHeadline("Modules")
+		config:CreateHeadline("Mythic Plus Scores")
+		config:CreateOptionToggle("Show on Player Units", "Show Mythic+ Score when you mouseover player units.", "enableUnitTooltips")
+		config:CreateOptionToggle("Show in Dungeon Finder", "Show Mythic+ Score when you mouseover groups or applicants.", "enableLFGTooltips")
+		config:CreateOptionToggle("Show on Guild Roster", "Show Mythic+ Score when you mouseover guild members in the guild roster.", "enableGuildTooltips")
+		config:CreateOptionToggle("Show in \"Who\" UI", "Show Mythic+ Score when you mouseover in the Who results dialog.", "enableWhoTooltips")
+		config:CreateOptionToggle("Show in /who Results", "Show Mythic+ Score when you \"/who\" someone specific.", "enableWhoMessages")
+
+		config:CreateHeadline("Tooltip Customization")
+		-- config:CreateOptionToggle("Keystone Tooltips", "Adds Keystone information to Keystone tooltips. Suggests a Mythic+ Score for the group.", "enableKeystoneTooltips")
+		config:CreateOptionToggle("Show Previous Season Score", "Shows the previous season score if the players current score is lower than before.", "showPrevAllScore")
+
+		config:CreateHeadline("Copy Raider.IO Profile URL")
+		config:CreateOptionToggle("Allow on Player Units", "Right-click player units to copy Raider.IO profile URL.", "showDropDownCopyURL")
+		config:CreateOptionToggle("Allow in Dungeon Finder", "Right-click groups or applicants in Dungeon Finder to copy Raider.IO profile URL.", "enableLFGDropdown")
+
+		config:CreateHeadline("Mythic Plus Database Modules")
 		config:CreateModuleToggle("Americas - Alliance", "RaiderIO_DB_US_A")
 		config:CreateModuleToggle("Americas - Horde", "RaiderIO_DB_US_H")
 		config:CreateModuleToggle("Europe - Alliance", "RaiderIO_DB_EU_A")
@@ -314,16 +318,6 @@ local function InitConfig()
 		config:CreateModuleToggle("Korea - Horde", "RaiderIO_DB_KR_H")
 		config:CreateModuleToggle("Taiwan - Alliance", "RaiderIO_DB_TW_A")
 		config:CreateModuleToggle("Taiwan - Horde", "RaiderIO_DB_TW_H")
-		config:CreateHeadline("Look and Feel")
-		config:CreateOptionToggle("Unit Tooltips", "Show Mythic+ Score when you mouseover player units.", "enableUnitTooltips")
-		config:CreateOptionToggle("LFD Tooltips", "Show Mythic+ Score to the group tooltip or the applicant tooltip.", "enableLFGTooltips")
-		config:CreateOptionToggle("LFD Dropdown", "Show option to copy Raider.IO profile link in the dropdown menus on groups and applicants.", "enableLFGDropdown")
-		config:CreateOptionToggle("Who Tooltips", "Show Mythic+ Score when you mouseover them in the Who results dialog.", "enableWhoTooltips")
-		config:CreateOptionToggle("Who Results", "Show Mythic+ Score in the chat when you Who someone specific.", "enableWhoMessages")
-		config:CreateOptionToggle("Guild Tooltips", "Show Mythic+ Score when you mouseover guild members in the guild roster.", "enableGuildTooltips")
-		config:CreateOptionToggle("Keystone Tooltips", "Adds Keystone information to Keystone tooltips. Suggests a Mythic+ Score for the group.", "enableKeystoneTooltips")
-		config:CreateOptionToggle("Show Prev Season Score", "Shows the previous season score if the players current score is lower than before.", "showPrevAllScore")
-		config:CreateOptionToggle("Show Profile URL", "Shows the Raider.IO URL to a players profile in the dropdown menu when you right-click players.", "showDropDownCopyURL")
 
 		-- add save button and cancel buttons
 		local buttons = config:CreateWidget("Frame", 4)
@@ -450,11 +444,14 @@ end
 
 -- unpack the payload
 local function UnpackPayload(data)
+	-- 4294967296 == (1 << 32). Meaning, shift to get the hi-word.
+	-- WoW lua bit operators seem to only work on the lo-word (?)
+	local hiword = data / 4294967296
 	return 
-		band(rshift(data, 0), PAYLOAD_MASK),
+		band(data, PAYLOAD_MASK),
 		band(rshift(data, PAYLOAD_BITS), PAYLOAD_MASK),
-		band(rshift(data, PAYLOAD_BITS2), PAYLOAD_MASK),
-		band(rshift(data, PAYLOAD_BITS3), PAYLOAD_MASK)
+		band(hiword, PAYLOAD_MASK),
+		band(rshift(hiword, PAYLOAD_BITS), PAYLOAD_MASK)
 end
 
 -- caches the profile table and returns one using keys
@@ -467,7 +464,7 @@ local function CacheProviderData(provider, name, realm, index, data1, data2)
 	-- unpack the payloads into these tables
 	data1 = {UnpackPayload(data1)}
 	data2 = {UnpackPayload(data2)}
-	-- TODO: can we make this table read-only? raw methods will buypass metatable restrictions we try to enforce
+	-- TODO: can we make this table read-only? raw methods will bypass metatable restrictions we try to enforce
 	-- build this custom table in order to avoid users tainting the provider database
 	cache = {
 		region = provider.region,
@@ -475,42 +472,19 @@ local function CacheProviderData(provider, name, realm, index, data1, data2)
 		date = provider.date,
 		name = name,
 		realm = realm,
-		-- data from Raider.IO
-		roleMask = data1[1],
-		allScore = data1[2],
-		prevAllScore = data1[3]
+		-- data from Raider.IO backend
+		allScore = data1[1],
+		prevAllScore = data1[2],
+		-- extract the scores per role combination
+		tankScore = data2[1],
+		healScore = data2[2],
+		dpsScore = data2[3],
 	}
-	-- extract the scores per role combination (very ugly, but if-else is probably most efficient... given the amount of valid role combinations)
-	local tankScore, healScore, dpsScore = 0, 0, 0
-	if cache.roleMask == ROLE_MASK.TANK then
-		tankScore = data1[2]
-	elseif cache.roleMask == ROLE_MASK.HEALER then
-		healScore = data1[2]
-	elseif cache.roleMask == ROLE_MASK.DPS then
-		dpsScore = data1[2]
-	elseif cache.roleMask == ROLE_COMBOS.TANK_HEALER then
-		tankScore, healScore = data2[1], data2[2]
-	elseif cache.roleMask == ROLE_COMBOS.TANK_DPS then
-		tankScore, dpsScore = data2[1], data2[2]
-	elseif cache.roleMask == ROLE_COMBOS.HEALER_DPS then
-		healScore, dpsScore = data2[1], data2[2]
-	elseif cache.roleMask == ROLE_COMBOS.TANK_HEALER_DPS then
-		tankScore, healScore, dpsScore = data2[1], data2[2], data2[3]
-	end
-	-- append per role scores
-	cache.tankScore, cache.healScore, cache.dpsScore = tankScore, healScore, dpsScore
+
 	-- append additional role information
-	cache.isTank, cache.isHealer, cache.isDPS = tankScore > 0, healScore > 0, dpsScore > 0
-	cache.numRoles = (tankScore > 0 and 1 or 0) + (healScore > 0 and 1 or 0) + (dpsScore > 0 and 1 or 0)
-	cache.isMultiRole = cache.numRoles > 1
-	-- try find the players best role (assume it's their primary role)
-	cache.primaryRole = ROLE_MASK.DPS
-	local maxScore = max(tankScore, healScore, dpsScore)
-	if tankScore == maxScore then
-		cache.primaryRole = ROLE_MASK.TANK
-	elseif healScore == maxScore then
-		cache.primaryRole = ROLE_MASK.HEALER
-	end
+	cache.isTank, cache.isHealer, cache.isDPS = cache.tankScore > 0, cache.healScore > 0, cache.dpsScore > 0
+	cache.numRoles = (cache.tankScore > 0 and 1 or 0) + (cache.healScore > 0 and 1 or 0) + (cache.dpsScore > 0 and 1 or 0)
+
 	-- store it in the profile cache
 	profileCache[index] = cache
 	-- return the freshly generated table
@@ -557,24 +531,13 @@ end
 
 -- returns score color using item colors
 local function GetScoreColor(score)
-	local r, g, b = 1, .5, .5
-	if type(score) == "number" then
-		if SCORES then
-			if score >= SCORES[1] then
-				r, g, b = GetItemQualityColor(5)
-			elseif score >= SCORES[2] then
-				r, g, b = GetItemQualityColor(4)
-			elseif score >= SCORES[3] then
-				r, g, b = GetItemQualityColor(3)
-			elseif score >= SCORES[4] then
-				r, g, b = GetItemQualityColor(2)
-			elseif score >= SCORES[5] then
-				r, g, b = GetItemQualityColor(1)
-			else -- if score >= SCORES[6] then
-				r, g, b = GetItemQualityColor(0)
+	local r, g, b = 0.6, 0.6, 0.6		-- default color
+	if SCORE_TIERS and type(score) == "number" then
+		for i = 1, #SCORE_TIERS do
+			if score >= SCORE_TIERS[i]["score"] then
+				local colors = SCORE_TIERS[i]["color"]
+				return colors[1], colors[2], colors[3]
 			end
-		else
-			r, g, b = 1, 1, 1
 		end
 	end
 	return r, g, b
@@ -641,6 +604,7 @@ _G.RaiderIO = {
 	GetScore = GetScore,
 	-- Please do not use the AddProvider method as it's only for internal RaiderIO use (loading the databases selected by the user)
 	AddProvider = AddProvider,
+	GetScoreColor = GetScoreColor
 }
 
 -- an addon has loaded, is it ours? is it some LOD addon we can hook?
@@ -658,8 +622,6 @@ end
 function addon:PLAYER_LOGIN()
 	-- store our faction for later use
 	PLAYER_FACTION = GetFaction("player")
-	-- get the regions score table
-	SCORES = ns.regionScoreStats[REGIONS[GetCurrentRegion()]]
 end
 
 -- we enter the world (after a loading screen, int/out of instances)
@@ -714,7 +676,7 @@ do
 	}
 
 	_G.UnitPopupButtons["RAIDERIO_COPY_URL"] = {
-		text = "Copy Raider.IO Link",
+		text = "Copy Raider.IO URL",
 		dist = 0,
 		func = function()
 			local dropdownFrame = UIDROPDOWNMENU_INIT_MENU
@@ -899,7 +861,7 @@ do
 			local DROPDOWN_ENTRY = {
 				notCheckable = true,
 				arg1 = nil, -- full name goes here
-				text = "Copy Raider.IO Link",
+				text = "Copy Raider.IO URL",
 				dist = 0,
 				func = function(self)
 					local dropdownFrame = UIDROPDOWNMENU_INIT_MENU
@@ -1073,7 +1035,7 @@ do
 			-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
 			if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
 				text = text .. "Raider|cffFFFFFF|r.IO M+ Score: " .. profile.allScore .. " (Prev. Season: " .. profile.prevAllScore .. "). "
-			elseif profile.allScore > 0 or profile.isMultiRole then
+			elseif profile.allScore > 0 then
 				text = text .. "Raider|cffFFFFFF|r.IO M+ Score: " .. profile.allScore .. ". "
 			end
 

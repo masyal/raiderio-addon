@@ -1,9 +1,10 @@
 ## Interface: 70200
-## Title: RaiderIO - Taiwan - Horde
-## Notes: Enable the region and faction you want to load into RaiderIO for the selected character.
-## Author: RaiderIO, Vladinator
+## Title: Raider.IO Mythic+ (Taiwan: Horde)
+## Notes: Raider.IO Mythic Plus Scores DB for Taiwan / Horde. Updated nightly.
+## Author: Aspyr and Vladiniator
 ## Dependencies: RaiderIO
 ## DefaultState: disabled
 ## X-Region: Taiwan
 ## X-Faction: Horde
+## X-Website: https://raider.io
 ../RaiderIO/db/db_tw_horde.lua

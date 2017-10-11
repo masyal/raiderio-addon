@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 set toc_interface=70200
-set toc_author=RaiderIO, Vladinator
+set toc_author=Raider.IO, Vladinator
 set toc_addon=RaiderIO
 
 for %%r in (
@@ -35,13 +35,14 @@ for %%r in (
 		mkdir "!d!"
 
 		echo ## Interface: !toc_interface!>"!f!"
-		echo ## Title: !toc_addon! - !r2! - !f2!>>"!f!"
-		echo ## Notes: Enable the region and faction you want to load into !toc_addon! for the selected character.>>"!f!"
+		echo ## Title: Raider.IO Mythic+ (!r2! - !f2!)>>"!f!"
+		echo ## Notes: Raider.IO Mythic Plus Scores DB for !r2! / !f2!. Updated nightly.>>"!f!"
 		echo ## Author: !toc_author!>>"!f!"
 		echo ## Dependencies: !toc_addon!>>"!f!"
 		echo ## DefaultState: disabled>>"!f!"
 		echo ## X-Region: !r2!>>"!f!"
 		echo ## X-Faction: !f2!>>"!f!"
+		echo ## X-Website: https://raider.io>>"!f!"
 		echo ../!toc_addon!/db/db_!lr!_!lf!.lua>>"!f!"
 	)
 )

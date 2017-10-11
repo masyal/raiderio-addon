@@ -1,9 +1,10 @@
 ## Interface: 70200
-## Title: RaiderIO - Americas - Alliance
-## Notes: Enable the region and faction you want to load into RaiderIO for the selected character.
-## Author: RaiderIO, Vladinator
+## Title: Raider.IO Mythic+ (Americas: Alliance)
+## Notes: Raider.IO Mythic Plus Scores DB for Americas / Alliance. Updated nightly.
+## Author: Aspyr and Vladiniator
 ## Dependencies: RaiderIO
 ## DefaultState: disabled
 ## X-Region: Americas
 ## X-Faction: Alliance
+## X-Website: https://raider.io
 ../RaiderIO/db/db_us_alliance.lua

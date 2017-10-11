@@ -1,6 +1,6 @@
-# RaiderIO
+# Raider.IO
 
-Provides you with an easy way to look at someones Mythic+ Score in-game.
+Provides you with an easy way to view Raider.IO Mythic+ Scores in-game.
 
 Simply hover over a player with your mouse, your guild roster, or even the Group Finder list where you see queued people; if they have a score you'll see it on their tooltip.
 

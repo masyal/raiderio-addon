@@ -1,9 +1,10 @@
 ## Interface: 70200
-## Title: RaiderIO - Korea - Horde
-## Notes: Enable the region and faction you want to load into RaiderIO for the selected character.
-## Author: RaiderIO, Vladinator
+## Title: Raider.IO Mythic+ (Korea: Horde)
+## Notes: Raider.IO Mythic Plus Scores DB for Korea / Horde. Updated nightly.
+## Author: Aspyr and Vladiniator
 ## Dependencies: RaiderIO
 ## DefaultState: disabled
 ## X-Region: Korea
 ## X-Faction: Horde
+## X-Website: https://raider.io
 ../RaiderIO/db/db_kr_horde.lua

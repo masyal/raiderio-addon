@@ -1,9 +1,9 @@
 ## Interface: 70200
-## Title: RaiderIO
-## Notes: Shows Raider.IO Mythic+ Score in-game. Databases are updated nightly.
-## Author: RaiderIO, Vladinator
+## Title: Raider.IO Mythic Plus
+## Notes: Shows Raider.IO Mythic+ Scores in-game. Make sure to load one or more region DB.
+## Author: Aspyr and Vladiniator
 ## Version: 7.2.5 (@project-version@)
 ## SavedVariables: RaiderIO_Config
 db/db_realms.lua
-db/db_score_stats.lua
+db/db_score_tiers.lua
 core.lua

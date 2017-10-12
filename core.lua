@@ -536,7 +536,7 @@ local function GetProviderData(name, realm, faction)
 			if r then
 				d = r[name]
 				if d then
-					return CacheProviderData(name, realm, d, lu[d], lu[d + 1])
+					return CacheProviderData(name, realm, i .. "-" .. d, lu[d], lu[d + 1])
 				end
 			end
 		end
@@ -1130,17 +1130,18 @@ do
 	-- DropDownMenu
 	uiHooks[#uiHooks + 1] = function()
 		if addonConfig.showDropDownCopyURL ~= false then
+			-- TODO: commented out those that might cause taint that broke stuff
 			local append = {
 				-- "PARTY",
-				-- "PLAYER",
+				"PLAYER",
 				-- "RAID_PLAYER",
 				-- "RAID",
 				"FRIEND",
 				-- "BN_FRIEND",
-				-- "GUILD",
+				"GUILD",
 				-- "CHAT_ROSTER",
 				-- "ARENAENEMY",
-				"WORLD_STATE_SCORE", -- TODO: taint?
+				-- "WORLD_STATE_SCORE",
 			}
 			for i = 1, #append do
 				local key = append[i]

@@ -28,50 +28,6 @@ local addonConfig = {
 
 -- constants
 local L = ns.L
-
---TEMP TEMP UNTIL LOCALE FIXED
-L = {}
-L.LOCALE_NAME = "enUS"
-L.CHANGES_REQUIRES_UI_RELOAD = "Your changes have been saved, but you must reload your interface for them to take effect.\r\n\r\nDo you wish to do that now?"
-L.RELOAD_NOW = "Reload Now"
-L.RELOAD_LATER = "I'll Reload Later"
-L.RAIDERIO_MYTHIC_OPTIONS = "Raider.IO Mythic+ Options"
-L.MYTHIC_PLUS_SCORES = "Mythic Plus Scores"
-L.SHOW_ON_PLAYER_UNITS = "Show on Player Units"
-L.SHOW_ON_PLAYER_UNITS_DESC = "Show Mythic+ Score when you mouseover player units."
-L.SHOW_IN_LFD = "Show in Dungeon Finder"
-L.SHOW_IN_LFD_DESC = "Show Mythic+ Score when you mouseover groups or applicants."
-L.SHOW_ON_GUILD_ROSTER = "Show on Guild Roster"
-L.SHOW_ON_GUILD_ROSTER_DESC = "Show Mythic+ Score when you mouseover guild members in the guild roster."
-L.SHOW_IN_WHO_UI = "Show in \"Who\" UI"
-L.SHOW_IN_WHO_UI_DESC = "Show Mythic+ Score when you mouseover in the Who results dialog."
-L.SHOW_IN_SLASH_WHO_RESULTS = "Show in /who Results"
-L.SHOW_IN_SLASH_WHO_RESULTS_DESC = "Show Mythic+ Score when you \"/who\" someone specific."
-L.TOOLTIP_CUSTOMIZATION = "Tooltip Customization"
-L.SHOW_KEYSTONE_INFO = "Show Keystone Info"
-L.SHOW_KEYSTONE_INFO_DESC = "Adds Keystone information to Keystone tooltips. Suggests a Mythic+ Score for the group."
-L.SHOW_PREV_SEASON_SCORE = "Show Previous Season Score"
-L.SHOW_PREV_SEASON_SCORE_DESC = "Shows the previous season score if the players current score is lower than before."
-L.COPY_RAIDERIO_PROFILE_URL = "Copy Raider.IO Profile URL"
-L.ALLOW_ON_PLAYER_UNITS = "Allow on Player Units"
-L.ALLOW_ON_PLAYER_UNITS_DESC = "Right-click player units to copy Raider.IO profile URL."
-L.ALLOW_IN_LFD = "Allow in Dungeon Finder"
-L.ALLOW_IN_LFD_DESC = "Right-click groups or applicants in Dungeon Finder to copy Raider.IO profile URL."
-L.MYTHIC_PLUS_DB_MODULES = "Mythic Plus Database Modules"
-L.OPEN_CONFIG = "Open Config"
-L.RAIDERIO_MP_SCORE = "Raider.IO M+ Score"
-L.TANK_SCORE = "Tank Score"
-L.HEALER_SCORE = "Healer Score"
-L.DPS_SCORE = "DPS Score"
-L.PREV_SEASON_SCORE = "Previous Season Score"
-L.COPY_RAIDERIO_URL = "Copy Raider.IO URL"
-L.RAIDERIO_MP_SCORE_COLON = "Raider.IO M+ Score: "
-L.PREV_SEASON_COLON = "Prev. Season: "
-L.TANK = "Tank"
-L.HEALER = "Healer"
-L.DPS = "DPS"
---TEMP TEMP UNTIL LOCALE FIXED
-
 local SCORE_TIERS = ns.scoreTiers
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local FACTION = {
@@ -92,6 +48,12 @@ local PLAYER_FACTION
 -- create the addon core frame
 local addon = CreateFrame("Frame")
 
+-- gets the current region name and index
+local function GetRegion()
+	local i = GetCurrentRegion()
+	return REGIONS[i], i
+end
+
 -- runs the hook process, trying to hook LOD addons
 local function ApplyHooks()
 	-- iterate backwards, removing hooks as they complete
@@ -110,7 +72,7 @@ local function AddProvider(data)
 	-- make sure the object is what we expect it to be like
 	assert(type(data) == "table" and type(data.name) == "string" and type(data.region) == "string" and type(data.faction) == "number", "Raider.IO has been requested to load a database that isn't supported.")
 	-- is this provider relevant?
-	if REGIONS[GetCurrentRegion()] == data.region then
+	if GetRegion() == data.region then
 		-- append provider to the table
 		if dataProvider then
 			if not dataProvider.db1 then dataProvider.db1 = data.db1 end
@@ -533,6 +495,8 @@ local function CacheProviderData(name, realm, index, data1, data2)
 		region = dataProvider.region,
 		faction = dataProvider.faction,
 		date = dataProvider.date,
+		season = dataProvider.season,
+		prevSeason = dataProvider.prevSeason,
 		name = name,
 		realm = realm,
 		-- current and last season overall score
@@ -555,6 +519,30 @@ local function CacheProviderData(name, realm, index, data1, data2)
 	return cache
 end
 
+-- returns the profile of a given character, faction is optional but recommended for quicker lookups
+local function GetProviderData(name, realm, faction)
+	-- figure out what faction tables we want to iterate
+	local a, b = 1, 2
+	if faction == 1 or faction == 2 then
+		a, b = faction, faction
+	end
+	-- iterate through the data
+	local db, lu, r, d
+	for i = a, b do
+		db, lu = dataProvider["db" .. i], dataProvider["lookup" .. i]
+		-- sanity check that the data exists and is loaded, because it might not be for the requested faction
+		if db and lu then
+			r = db[realm]
+			if r then
+				d = r[name]
+				if d then
+					return CacheProviderData(name, realm, d, lu[d], lu[d + 1])
+				end
+			end
+		end
+	end
+end
+
 -- retrieves the profile of a given unit, or name+realm query
 local function GetScore(arg1, arg2, forceFaction)
 	if not dataProvider then
@@ -566,35 +554,7 @@ local function GetScore(arg1, arg2, forceFaction)
 		if unit and (UnitLevel(unit) or 0) < MAX_LEVEL then
 			return
 		end
-		local faction = type(forceFaction) == "number" and forceFaction or GetFaction(unit)
-		if faction then
-			local db, lookup = dataProvider["db" .. faction], dataProvider["lookup" .. faction]
-			if not db or not lookup then
-				return
-			end
-			local r = db[realm]
-			if r then
-				local ofs = r[name]
-				if ofs then
-					return CacheProviderData(name, realm, ofs, lookup[ofs], lookup[ofs + 1])
-				end
-			end
-		else
-			-- FIXME: is there a better way we should be doing this if there is no faction?
-			for faction = 1, 2 do
-				local db, lookup = dataProvider["db" .. faction], dataProvider["lookup" .. faction]
-				if not db or not lookup then
-					return
-				end
-				local r = db[realm]
-				if r then
-					local ofs = r[name]
-					if ofs then
-						return CacheProviderData(name, realm, ofs, lookup[ofs], lookup[ofs + 1])
-					end
-				end
-			end
-		end
+		return GetProviderData(name, realm, type(forceFaction) == "number" and forceFaction or GetFaction(unit))
 	end
 end
 
@@ -614,8 +574,8 @@ local function GetScoreColor(score)
 end
 
 -- appends score data to a given tooltip
-local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName)
-	local profile = GetScore(arg1)
+local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction)
+	local profile = GetScore(arg1, nil, forceFaction)
 	if profile then
 		-- add padding line if it looks nicer on the tooltip, also respect users preference
 		if not forceNoPadding then
@@ -706,7 +666,7 @@ do
 	local function CopyURLForNameAndRealm(...)
 		local name, realm = GetNameAndRealm(...)
 		local realmSlug = GetRealmSlug(realm)
-		local region = REGIONS[GetCurrentRegion()]
+		local region = GetRegion()
 		local url = format("https://raider.io/characters/%s/%s/%s", region, realmSlug, name)
 		if IsModifiedClick("CHATLINK") then
 			local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
@@ -773,7 +733,8 @@ do
 			if addonConfig.enableUnitTooltips == false then
 				return
 			end
-			AppendGameTooltip(self, (select(2, self:GetUnit())))
+			local _, unit = self:GetUnit()
+			AppendGameTooltip(self, unit, nil, nil, GetFaction(unit))
 		end)
 		return 1
 	end
@@ -805,7 +766,7 @@ do
 						if not hasOwner then
 							GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 						end
-						AppendGameTooltip(GameTooltip, fullName, not hasOwner, true)
+						AppendGameTooltip(GameTooltip, fullName, not hasOwner, true, PLAYER_FACTION)
 					end
 				end
 			end
@@ -818,7 +779,7 @@ do
 			local function SetSearchEntryTooltip(tooltip, resultID, autoAcceptOption)
 				local _, _, _, _, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
 				if leaderName then
-					AppendGameTooltip(tooltip, leaderName, false, true)
+					AppendGameTooltip(tooltip, leaderName, false, true, PLAYER_FACTION)
 				end
 			end
 			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
@@ -1028,7 +989,7 @@ do
 					if not hasOwner then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 					end
-					if not AppendGameTooltip(GameTooltip, name, not hasOwner, true) and not hasOwner then
+					if not AppendGameTooltip(GameTooltip, name, not hasOwner, true, PLAYER_FACTION) and not hasOwner then
 						GameTooltip:Hide()
 					end
 				end
@@ -1058,7 +1019,7 @@ do
 					local fullName = GetGuildRosterInfo(self.guildIndex)
 					if fullName then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
-						if not AppendGameTooltip(GameTooltip, fullName, true, false) then
+						if not AppendGameTooltip(GameTooltip, fullName, true, false, PLAYER_FACTION) then
 							GameTooltip:Hide()
 						end
 					end
@@ -1152,7 +1113,7 @@ do
 						else
 							repl = format(WHO_LIST_FORMAT, nameLink, name, level, race, class, zone)
 						end
-						profile = GetScore(nameLink)
+						profile = GetScore(nameLink, nil, PLAYER_FACTION)
 						if profile then
 							repl = repl .. " - " .. score(profile)
 						end
@@ -1170,16 +1131,16 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if addonConfig.showDropDownCopyURL ~= false then
 			local append = {
-				"PARTY",
-				"PLAYER",
-				"RAID_PLAYER",
-				"RAID",
+				-- "PARTY",
+				-- "PLAYER",
+				-- "RAID_PLAYER",
+				-- "RAID",
 				"FRIEND",
-				"BN_FRIEND",
-				"GUILD",
-				"CHAT_ROSTER",
-				"ARENAENEMY",
-				"WORLD_STATE_SCORE",
+				-- "BN_FRIEND",
+				-- "GUILD",
+				-- "CHAT_ROSTER",
+				-- "ARENAENEMY",
+				"WORLD_STATE_SCORE", -- TODO: taint?
 			}
 			for i = 1, #append do
 				local key = append[i]

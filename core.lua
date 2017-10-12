@@ -24,11 +24,13 @@ local addonConfig = {
 	enableKeystoneTooltips = true,
 	showPrevAllScore = true,
 	showDropDownCopyURL = true,
+	showSimpleScoreColors = false,
 }
 
 -- constants
 local L = ns.L
 local SCORE_TIERS = ns.scoreTiers
+local SCORE_TIERS_SIMPLE = ns.scoreTiersSimple
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local FACTION = {
 	["Alliance"] = 1,
@@ -139,16 +141,27 @@ local function InitConfig()
 		local reload
 		for i = 1, #config.modules do
 			local f = config.modules[i]
-			local checked = f.checkButton:GetChecked()
-			local loaded = IsAddOnLoaded(f.addon)
-			if checked then
-				if not loaded then
+			local checked1 = f.checkButton:GetChecked()
+			local checked2 = f.checkButton2:GetChecked()
+			local loaded1 = IsAddOnLoaded(f.addon1)
+			local loaded2 = IsAddOnLoaded(f.addon2)
+			if checked1 then
+				if not loaded1 then
 					reload = 1
-					EnableAddOn(f.addon)
+					EnableAddOn(f.addon1)
 				end
-			elseif loaded then
+			elseif loaded1 then
 				reload = 1
-				DisableAddOn(f.addon)
+				DisableAddOn(f.addon1)
+			end
+			if checked2 then
+				if not loaded2 then
+					reload = 1
+					EnableAddOn(f.addon2)
+				end
+			elseif loaded2 then
+				reload = 1
+				DisableAddOn(f.addon2)
 			end
 		end
 		for i = 1, #config.options do
@@ -176,7 +189,8 @@ local function InitConfig()
 		Update = function(self)
 			for i = 1, #self.modules do
 				local f = self.modules[i]
-				f.checkButton:SetChecked(IsAddOnLoaded(f.addon))
+				f.checkButton:SetChecked(IsAddOnLoaded(f.addon1))
+				f.checkButton2:SetChecked(IsAddOnLoaded(f.addon2))
 			end
 			for i = 1, #self.options do
 				local f = self.options[i]
@@ -203,10 +217,15 @@ local function InitConfig()
 			widget.text:SetPoint("RIGHT", -8, 0)
 			widget.text:SetJustifyH("LEFT")
 
-			widget.checkButton = CreateFrame("CheckButton", "$parentCheckButton", widget, "UICheckButtonTemplate")
+			widget.checkButton = CreateFrame("CheckButton", "$parentCheckButton1", widget, "UICheckButtonTemplate")
 			widget.checkButton:Hide()
 			widget.checkButton:SetPoint("RIGHT", -4, 0)
 			widget.checkButton:SetScale(0.7)
+
+			widget.checkButton2 = CreateFrame("CheckButton", "$parentCheckButton2", widget, "UICheckButtonTemplate")
+			widget.checkButton2:Hide()
+			widget.checkButton2:SetPoint("RIGHT", widget.checkButton, "LEFT", -4, 0)
+			widget.checkButton2:SetScale(0.7)
 
 			widget.help = CreateFrame("Frame", nil, widget)
 			widget.help:Hide()
@@ -233,17 +252,28 @@ local function InitConfig()
 			self.lastWidget = widget
 			return widget
 		end,
+		CreatePadding = function(self)
+			local frame = self:CreateWidget("Frame")
+			local _, lastWidget = frame:GetPoint(1)
+			frame:ClearAllPoints()
+			frame:SetPoint("TOPLEFT", lastWidget, "BOTTOMLEFT", 0, -14)
+			frame:SetPoint("BOTTOMRIGHT", lastWidget, "BOTTOMRIGHT", 0, -4)
+			frame.bg:Hide()
+			return frame
+		end,
 		CreateHeadline = function(self, text)
 			local frame = self:CreateWidget("Frame")
 			frame.bg:Hide()
 			frame.text:SetText(text)
 			return frame
 		end,
-		CreateModuleToggle = function(self, name, addon)
+		CreateModuleToggle = function(self, name, addon1, addon2)
 			local frame = self:CreateWidget("Frame")
 			frame.text:SetText(name)
-			frame.addon = addon
+			frame.addon2 = addon1
+			frame.addon1 = addon2
 			frame.checkButton:Show()
+			frame.checkButton2:Show()
 			self.modules[#self.modules + 1] = frame
 			return frame
 		end,
@@ -262,7 +292,7 @@ local function InitConfig()
 
 	-- customize the look and feel
 	do
-		configFrame:SetSize(280, 496)
+		configFrame:SetSize(320, 496)
 		configFrame:SetPoint("CENTER")
 		configFrame:SetFrameStrata("DIALOG")
 		configFrame:SetFrameLevel(255)
@@ -316,6 +346,7 @@ local function InitConfig()
 		local header = config:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS)
 		header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
 
+		config:CreatePadding()
 		config:CreateHeadline(L.MYTHIC_PLUS_SCORES)
 		config:CreateOptionToggle(L.SHOW_ON_PLAYER_UNITS, L.SHOW_ON_PLAYER_UNITS_DESC, "enableUnitTooltips")
 		config:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
@@ -323,23 +354,23 @@ local function InitConfig()
 		config:CreateOptionToggle(L.SHOW_IN_WHO_UI, L.SHOW_IN_WHO_UI_DESC, "enableWhoTooltips")
 		config:CreateOptionToggle(L.SHOW_IN_SLASH_WHO_RESULTS, L.SHOW_IN_SLASH_WHO_RESULTS_DESC, "enableWhoMessages")
 
+		config:CreatePadding()
 		config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)
-		-- config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 		config:CreateOptionToggle(L.SHOW_PREV_SEASON_SCORE, L.SHOW_PREV_SEASON_SCORE_DESC, "showPrevAllScore")
+		config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
+		-- config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 
+		config:CreatePadding()
 		config:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
 		config:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
 		config:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
 
+		config:CreatePadding()
 		config:CreateHeadline(L.MYTHIC_PLUS_DB_MODULES)
-		config:CreateModuleToggle("Americas - Alliance", "RaiderIO_DB_US_A")
-		config:CreateModuleToggle("Americas - Horde", "RaiderIO_DB_US_H")
-		config:CreateModuleToggle("Europe - Alliance", "RaiderIO_DB_EU_A")
-		config:CreateModuleToggle("Europe - Horde", "RaiderIO_DB_EU_H")
-		config:CreateModuleToggle("Korea - Alliance", "RaiderIO_DB_KR_A")
-		config:CreateModuleToggle("Korea - Horde", "RaiderIO_DB_KR_H")
-		config:CreateModuleToggle("Taiwan - Alliance", "RaiderIO_DB_TW_A")
-		config:CreateModuleToggle("Taiwan - Horde", "RaiderIO_DB_TW_H")
+		local module1 = config:CreateModuleToggle("Americas", "RaiderIO_DB_US_A", "RaiderIO_DB_US_H")
+		config:CreateModuleToggle("Europe", "RaiderIO_DB_EU_A", "RaiderIO_DB_EU_H")
+		config:CreateModuleToggle("Korea", "RaiderIO_DB_KR_A", "RaiderIO_DB_KR_H")
+		config:CreateModuleToggle("Taiwan", "RaiderIO_DB_TW_A", "RaiderIO_DB_TW_H")
 
 		-- add save button and cancel buttons
 		local buttons = config:CreateWidget("Frame", 4)
@@ -361,11 +392,21 @@ local function InitConfig()
 
 		-- adjust frame height dynamically
 		local children = {configFrame:GetChildren()}
-		local height = 64
+		local height = 74
 		for i = 1, #children do
 			height = height + children[i]:GetHeight()
 		end
 		configFrame:SetHeight(height)
+
+		-- add faction headers over the first module
+		local af = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_02:0:0|t")
+		af:ClearAllPoints()
+		af:SetPoint("BOTTOM", module1.checkButton2, "TOP", 2, -5)
+		af:SetSize(32, 32)
+		local hf = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_01:0:0|t")
+		hf:ClearAllPoints()
+		hf:SetPoint("BOTTOM", module1.checkButton, "TOP", 2, -5)
+		hf:SetSize(32, 32)
 	end
 
 	-- add the category and a shortcut button in the interface panel options
@@ -406,7 +447,12 @@ local function Init()
 	if type(_G.RaiderIO_Config) ~= "table" then
 		_G.RaiderIO_Config = addonConfig
 	else
-		addonConfig = _G.RaiderIO_Config
+		local defaults = addonConfig
+		addonConfig = setmetatable(_G.RaiderIO_Config, {
+			__index = function(_, key)
+				return defaults[key]
+			end
+		})
 	end
 
 	-- wait for the login event, or run the associated code right away
@@ -560,13 +606,23 @@ end
 
 -- returns score color using item colors
 local function GetScoreColor(score)
-	local r, g, b = 0.6, 0.6, 0.6 -- default color
-	if SCORE_TIERS and type(score) == "number" then
-		for i = 1, #SCORE_TIERS do
-			local tier = SCORE_TIERS[i]
-			if score >= tier.score then
-				local color = tier.color
-				return color[1], color[2], color[3]
+	local r, g, b = 0.62, 0.62, 0.62
+	if type(score) == "number" then
+		if addonConfig.showSimpleScoreColors == false then
+			for i = 1, #SCORE_TIERS do
+				local tier = SCORE_TIERS[i]
+				if score >= tier.score then
+					local color = tier.color
+					return color[1], color[2], color[3]
+				end
+			end
+		else
+			for i = 1, #SCORE_TIERS_SIMPLE do
+				local tier = SCORE_TIERS_SIMPLE[i]
+				if score >= tier.score then
+					r, g, b = GetItemQualityColor(tier.quality)
+					return r, g, b
+				end
 			end
 		end
 	end

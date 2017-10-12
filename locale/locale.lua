@@ -3,7 +3,7 @@ local _, ns = ...
 local locale = GetLocale()
 
 local L = {
-	__index = function(k)
+	__index = function(_, k)
 		return format("[%s] %s", locale, tostring(k))
 	end
 }

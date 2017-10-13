@@ -1,28 +1,43 @@
-# Raider.IO
+# Raider.IO Mythic Plus
 
-Provides you with an easy way to view Raider.IO Mythic+ Scores in-game.
+This is a companion addon to go along with the Raid and Mythic+ Rankings site, Raider.IO: https://raider.io. With this addon installed, you'll gain access to an easy way to view the Mythic Keystone scores for players-- all without leaving the game!
 
 Simply hover over a player with your mouse, your guild roster, or even the Group Finder list where you see queued people; if they have a score you'll see it on their tooltip.
 
-# Getting started
+Additionally, you can right-click players from the standard target unit frame to `Copy Raider.IO URL` and then easily look up their full profile on the site.
 
-The easiest way is to use the Twitch client over at Curse to get your addon up-to-date. Install it, then start your game. The next step is to then open the addons dialog at the character selection screen and making sure you only enable your own region, and the factions you wish to be able to lookup in-game. If you attempt to load the wrong region, it will be automatically disabled and the memory freed, so don't worry if you keep everything enabled and load in, but you might experience a slower loading screen the first time on that character.
+If you have run into any problems, check out our FAQ at https://raider.io/faq, or join us on Discord at: https://discord.gg/jxpbvDy -- we always have people around willing to help.
 
-# Options
+# Getting Started
 
-Type ``/raiderio`` to open the Raider.IO options frame. You can also find a shortcut in the Interface/AddOn settings frame, just scroll down on the addon list, click Raider.IO then click the button to open the config frame.
+The easiest way to get started is to download the Twitch Desktop App at: https://app.twitch.tv/download, and then search for the "Raider.IO Mythic Plus" addon and install it.
 
-Here you can easily enable or disable various features and behavior, including the region and faction addons that are loaded for your character. Remember to click Save to save the changes, or Cancel to abort and close the dialog.
+Once installed you can just load into the game and you will start seeing scores on players around you. Do note that there are some limitations on the scores you see:
 
-# Updates
+The addon stores a snapshot of player data that is updated nightly. Each night the database will include all players that meet this criteria:
 
-We'll upload nightly builds with updated databases over players and their scores. Simply use the Twitch client to update the addon, and you'll update the scores as well.
+- Have earned at least 500 points in the current or previous Mythic+ season
+- Have logged in to the game within the past 30 days
 
-# API
+We'll upload nightly builds with updated databases over players and their scores. Simply use the Twitch client to download the latest version of the addon, which will always contain the latest scores.
 
-Addon developers can utilize the ``RaiderIO`` table to access certain API provided by this addon.
+# Configuring the AddOn
+
+Our recommended settings are enabled by default, but we've provided several options to customize how and where the tooltips might show while in-game. Type ``/raiderio`` to open the Raider.IO options frame. Alternatively, you can also find a shortcut in the ``Interface > AddOn`` settings frame.
+
+Here you can easily enable or disable various features, including whether to show scores from each faction, and various tooltip customization options.
+
+_Remember to click Save to save the changes, or Cancel to abort and close the dialog._
+
+# Developer API
+
+We love our fellow developers! We wanted to provide anyone in the community a simple way to tap into the scores that are a part of this addon. Addon developers can do this by utilizing the ``RaiderIO`` table to access certain APIs we provide.
 
 Use this function to retrieve a profile for a specific unit, or by using a name and realm, and optionally provide a faction (1 for Alliance, 2 for Horde) for a quicker lookup.
+
+### RaiderIO.GetScore
+
+Retrieve Mythic+ Scores for a given unit/player:
 
   ``RaiderIO.GetScore(unit)``
 
@@ -32,12 +47,35 @@ Use this function to retrieve a profile for a specific unit, or by using a name 
 
 The following table is returned if there are results, otherwise nil:
 
-  ``{ region = "eu|us...|", faction = 1|2, date = "2001-12-31T12:00:00Z", season = "Season 7.2.5", prevSeason = "Season 7.2.0", name = "Name", realm = "Realm", allScore = number, prevAllScore = number, tankScore = number, healScore = number, dpsScore = number, isTank = boolean, isHealer = boolean, isDPS = boolean, numRoles = number }``
+```
+{
+  region = "us" | "eu" | "kr" | "tw",
+  faction = 1|2,
+  date = "2001-12-31T12:00:00Z",
+  season = "Season 7.2.5",
+  prevSeason = "Season 7.2.0",
+  name = "Name",
+  realm = "Realm",
+  allScore = number,
+  prevAllScore = number,
+  tankScore = number,
+  healScore = number,
+  dpsScore = number,
+  isTank = boolean,
+  isHealer = boolean,
+  isDPS = boolean,
+  numRoles = number
+}
+```
 
-Use this function to retrieve the color scheme for a given score.
+### RaiderIO.GetScoreColor
 
-  ``RaiderIO.GetScoreColor(number)``
+Retrieve the color to use when rendering the given score value.
 
-The following arguments are returned in the 0-1 range:
+``RaiderIO.GetScoreColor(number)``
 
-  ``r, g, b``
+This will return a tuple of r/g/b values in the 0-1 range:
+
+```
+r, g, b
+```

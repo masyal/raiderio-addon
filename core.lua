@@ -719,7 +719,7 @@ function addon:PLAYER_LOGIN()
 	-- is the provider up to date?
 	if dataProvider then
 		local year, month, day, hours, minutes, seconds = dataProvider.date:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).*Z$")
-		local isOutdated = time() - time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) >= 0 -- 345600 -- >4 days
+		local isOutdated = time() - time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) >= 345600 -- 4 days
 		if isOutdated then
 			DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFF" .. addonName .. "|r is using |cffFF6666out-of-date|r data. Please update the addon for more accurate Mythic Plus Scores.", 1, 1, 0)
 		end

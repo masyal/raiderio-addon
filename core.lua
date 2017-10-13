@@ -25,6 +25,7 @@ local addonConfig = {
 	showPrevAllScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
+	disableScoreColors = false,
 }
 
 -- constants
@@ -358,6 +359,7 @@ local function InitConfig()
 		config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)
 		config:CreateOptionToggle(L.SHOW_PREV_SEASON_SCORE, L.SHOW_PREV_SEASON_SCORE_DESC, "showPrevAllScore")
 		config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
+		config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
 		-- config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 
 		config:CreatePadding()
@@ -606,6 +608,9 @@ end
 
 -- returns score color using item colors
 local function GetScoreColor(score)
+	if addonConfig.disableScoreColors == true then
+		return 1, 1, 1
+	end
 	local r, g, b = 0.62, 0.62, 0.62
 	if type(score) == "number" then
 		if addonConfig.showSimpleScoreColors == false then
@@ -613,17 +618,20 @@ local function GetScoreColor(score)
 				local tier = SCORE_TIERS[i]
 				if score >= tier.score then
 					local color = tier.color
-					return color[1], color[2], color[3]
+					r, g, b = color[1], color[2], color[3]
+					break
 				end
 			end
 		else
+			local qualityColor = 0
 			for i = 1, #SCORE_TIERS_SIMPLE do
 				local tier = SCORE_TIERS_SIMPLE[i]
 				if score >= tier.score then
-					r, g, b = GetItemQualityColor(tier.quality)
-					return r, g, b
+					qualityColor = tier.quality
+					break
 				end
 			end
+			r, g, b = GetItemQualityColor(qualityColor)
 		end
 	end
 	return r, g, b

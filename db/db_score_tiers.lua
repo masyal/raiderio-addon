@@ -18,7 +18,7 @@ ns.scoreTiers = {
   },
   [5] = {
     ["score"] = 3200,
-    ["color"] = { 0.7098039215686275, 0.26666666666666666, 0.7450980392156863 }
+    ["color"] = { 0.7450980392156863, 0.26666666666666666, 0.7098039215686275 }
   },
   [6] = {
     ["score"] = 3000,
@@ -84,4 +84,28 @@ ns.scoreTiers = {
     ["score"] = 500,
     ["color"] = { 1, 1, 1 }
   },
+}
+
+-- Simple "Color Blind" (standard quality) mode
+ns.scoreTiersSimple = {
+  [1] = {
+    ["score"] = 4000,
+    ["quality"] = 5
+  },
+  [2] = {
+    ["score"] = 3000,
+    ["quality"] = 4
+  },
+  [3] = {
+    ["score"] = 2000,
+    ["quality"] = 3
+  },
+  [4] = {
+    ["score"] = 1000,
+    ["quality"] = 2
+  },
+  [5] = {
+    ["score"] = 500,
+    ["quality"] = 1
+  }
 }

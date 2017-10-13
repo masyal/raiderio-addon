@@ -394,18 +394,18 @@ local function InitConfig()
 
 		-- adjust frame height dynamically
 		local children = {configFrame:GetChildren()}
-		local height = 74
+		local height = 75
 		for i = 1, #children do
 			height = height + children[i]:GetHeight()
 		end
 		configFrame:SetHeight(height)
 
 		-- add faction headers over the first module
-		local af = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_02:0:0|t")
+		local af = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_02:0:0:0:0:16:16:4:12:4:12|t")
 		af:ClearAllPoints()
 		af:SetPoint("BOTTOM", module1.checkButton2, "TOP", 2, -5)
 		af:SetSize(32, 32)
-		local hf = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_01:0:0|t")
+		local hf = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_01:0:0:0:0:16:16:4:12:4:12|t")
 		hf:ClearAllPoints()
 		hf:SetPoint("BOTTOM", module1.checkButton, "TOP", 2, -5)
 		hf:SetSize(32, 32)
@@ -716,6 +716,14 @@ end
 function addon:PLAYER_LOGIN()
 	-- store our faction for later use
 	PLAYER_FACTION = GetFaction("player")
+	-- is the provider up to date?
+	if dataProvider then
+		local year, month, day, hours, minutes, seconds = dataProvider.date:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).*Z$")
+		local isOutdated = time() - time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) >= 0 -- 345600 -- >4 days
+		if isOutdated then
+			DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFF" .. addonName .. "|r is using |cffFF6666out-of-date|r data. Please update the addon for more accurate Mythic Plus Scores.", 1, 1, 0)
+		end
+	end
 end
 
 -- we enter the world (after a loading screen, int/out of instances)

@@ -23,6 +23,7 @@ local addonConfig = {
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
 	showPrevAllScore = true,
+	showMainsScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
 	disableScoreColors = false,
@@ -43,6 +44,21 @@ local REGIONS = {
 	"eu",
 	"tw",
 	"cn"
+}
+
+-- easter
+local EGG = {
+	["eu"] = {
+		["Darksorrow"] = {
+			["Cyan"] = "Overload is LF Mythic Raiders", -- Raider.IO AddOn Author
+		},
+	},
+	["us"] = {
+		["Skullcrusher"] = {
+			["Aspyrael"] = "Raider.IO Creator",
+			["Ulsoga"] = "Raider.IO Creator",
+		},
+	},
 }
 
 -- session constants
@@ -358,6 +374,7 @@ local function InitConfig()
 		config:CreatePadding()
 		config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)
 		config:CreateOptionToggle(L.SHOW_PREV_SEASON_SCORE, L.SHOW_PREV_SEASON_SCORE_DESC, "showPrevAllScore")
+		config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
 		config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 		config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
 		-- config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
@@ -394,9 +411,9 @@ local function InitConfig()
 
 		-- adjust frame height dynamically
 		local children = {configFrame:GetChildren()}
-		local height = 75
+		local height = 32
 		for i = 1, #children do
-			height = height + children[i]:GetHeight()
+			height = height + children[i]:GetHeight() + 2
 		end
 		configFrame:SetHeight(height)
 
@@ -550,6 +567,7 @@ local function CacheProviderData(name, realm, index, data1, data2)
 		-- current and last season overall score
 		allScore = data1[1],
 		prevAllScore = data1[2],
+		mainScore = data1[3],
 		-- extract the scores per role
 		tankScore = data2[1],
 		healScore = data2[2],
@@ -678,6 +696,23 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 
 		if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
 			tooltip:AddDoubleLine(L.PREV_SEASON_SCORE, profile.prevAllScore, 0.8, 0.8, 0.8, GetScoreColor(profile.prevAllScore))
+		end
+
+		if addonConfig.showMainsScore ~= false and profile.mainScore > 0 then
+			tooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 0.8, 0.8, 0.8, GetScoreColor(profile.mainScore))
+		end
+
+		do
+			local t = EGG[profile.region]
+			if t then
+				t = t[profile.realm]
+				if t then
+					t = t[profile.name]
+					if t then
+						tooltip:AddLine(t, 0, 1, 0, false)
+					end
+				end
+			end
 		end
 
 		tooltip:Show()
@@ -1140,6 +1175,11 @@ do
 				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. " (" .. L.PREV_SEASON_COLON .. profile.prevAllScore .. "). "
 			elseif profile.allScore > 0 then
 				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. ". "
+			end
+
+			-- show the mains season score
+			if addonConfig.showMainsScore ~= false and profile.mainScore > 0 then
+				text = text .. "(" .. L.MAINS_SCORE_COLON .. profile.mainScore .. "). "
 			end
 
 			-- show tank, healer and dps scores

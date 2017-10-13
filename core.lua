@@ -50,7 +50,7 @@ local REGIONS = {
 local EGG = {
 	["eu"] = {
 		["Darksorrow"] = {
-			["Cyan"] = "Overload is LF Mythic Raiders", -- Raider.IO AddOn Author
+			["Cyan"] = "Raider.IO AddOn Author",
 		},
 	},
 	["us"] = {

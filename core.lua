@@ -69,6 +69,14 @@ local IS_DB_OUTDATED
 -- create the addon core frame
 local addon = CreateFrame("Frame")
 
+-- get timezone offset between local and UTC+0 time
+local function GetTimezoneOffset(ts)
+	local u = date("!*t", ts)
+	local l = date("*t", ts)
+	l.isdst = false
+	return difftime(time(l), time(u))
+end
+
 -- gets the current region name and index
 local function GetRegion()
 	local i = GetCurrentRegion()
@@ -760,7 +768,14 @@ function addon:PLAYER_LOGIN()
 	-- is the provider up to date?
 	if dataProvider then
 		local year, month, day, hours, minutes, seconds = dataProvider.date:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).*Z$")
-		IS_DB_OUTDATED = time() - time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) >= OUTDATED_SECONDS
+		-- parse the ISO timestamp to unix time
+		local ts = time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds })
+		-- calculate the timezone offset between the user and UTC+0
+		local offset = GetTimezoneOffset(ts)
+		-- find elapsed seconds since database update and account for the timezone offset
+		local diff = time() - ts - offset
+		-- figure out of the DB is outdated or not by comparing to our threshold
+		IS_DB_OUTDATED =  diff >= OUTDATED_SECONDS
 		if IS_DB_OUTDATED then
 			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUTDATED_DATABASE_S, addonName), 1, 1, 0)
 		end

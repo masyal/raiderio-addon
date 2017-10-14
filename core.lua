@@ -56,7 +56,7 @@ local EGG = {
 	["us"] = {
 		["Skullcrusher"] = {
 			["Aspyrael"] = "Raider.IO Creator",
-			["Ulsoga"] = "Raider.IO Creator",
+			["Ulsoga"] = "Immeasurable Greatness",
 		},
 	},
 }
@@ -698,7 +698,7 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			tooltip:AddDoubleLine(L.PREV_SEASON_SCORE, profile.prevAllScore, 0.8, 0.8, 0.8, GetScoreColor(profile.prevAllScore))
 		end
 
-		if addonConfig.showMainsScore ~= false and profile.mainScore > 0 then
+		if addonConfig.showMainsScore ~= false and profile.mainScore > profile.allScore then
 			tooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 0.8, 0.8, 0.8, GetScoreColor(profile.mainScore))
 		end
 
@@ -709,7 +709,7 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 				if t then
 					t = t[profile.name]
 					if t then
-						tooltip:AddLine(t, 0, 1, 0, false)
+						tooltip:AddLine(t, 0.9, 0.8, 0.5, false)
 					end
 				end
 			end
@@ -1178,7 +1178,7 @@ do
 			end
 
 			-- show the mains season score
-			if addonConfig.showMainsScore ~= false and profile.mainScore > 0 then
+			if addonConfig.showMainsScore ~= false and profile.mainScore > profile.allScore then
 				text = text .. "(" .. L.MAINS_SCORE_COLON .. profile.mainScore .. "). "
 			end
 

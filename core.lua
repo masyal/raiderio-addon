@@ -65,6 +65,7 @@ local EGG = {
 -- session constants
 local PLAYER_FACTION
 local IS_DB_OUTDATED
+local OUTDATED_DAYS
 
 -- create the addon core frame
 local addon = CreateFrame("Frame")
@@ -726,7 +727,7 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		end
 
 		if IS_DB_OUTDATED then
-			tooltip:AddLine(L.OUTDATED_DATABASE, 0.9, 0.9, 0.9, false)
+			tooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS), 0.9, 0.9, 0.9, false)
 		end
 
 		tooltip:Show()
@@ -775,9 +776,10 @@ function addon:PLAYER_LOGIN()
 		-- find elapsed seconds since database update and account for the timezone offset
 		local diff = time() - ts - offset
 		-- figure out of the DB is outdated or not by comparing to our threshold
-		IS_DB_OUTDATED =  diff >= OUTDATED_SECONDS
+		IS_DB_OUTDATED = diff >= OUTDATED_SECONDS
+		OUTDATED_DAYS = floor(diff / 86400 + 0.5)
 		if IS_DB_OUTDATED then
-			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUTDATED_DATABASE_S, addonName), 1, 1, 0)
+			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUTDATED_DATABASE_S, addonName, OUTDATED_DAYS), 1, 1, 0)
 		end
 	end
 end

@@ -4,8 +4,8 @@ local L = ns:NewLocale()
 
 L.LOCALE_NAME = "enUS"
 
-L.OUTDATED_DATABASE_S = "|cffFFFFFF%s|r is using |cffFF6666out-of-date|r data. Please update the addon for more accurate Mythic Plus Scores."
-L.OUTDATED_DATABASE = "Scores Data Out of Date"
+L.OUTDATED_DATABASE_S = "|cffFFFFFF%s|r is using data that is |cffFF6666%d|r days old. Please update the addon for more accurate Mythic Plus Scores."
+L.OUTDATED_DATABASE = "Scores are %d Days Old"
 L.CHANGES_REQUIRES_UI_RELOAD = "Your changes have been saved, but you must reload your interface for them to take effect.\r\n\r\nDo you wish to do that now?"
 L.RELOAD_NOW = "Reload Now"
 L.RELOAD_LATER = "I'll Reload Later"

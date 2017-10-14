@@ -63,6 +63,7 @@ local EGG = {
 
 -- session constants
 local PLAYER_FACTION
+local IS_DB_OUTDATED
 
 -- create the addon core frame
 local addon = CreateFrame("Frame")
@@ -715,6 +716,10 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			end
 		end
 
+		if IS_DB_OUTDATED then
+			-- tooltip:AddLine(L.OUTDATED_DATABASE, 1, 1, 1, false)
+		end
+
 		tooltip:Show()
 
 		return 1
@@ -754,9 +759,9 @@ function addon:PLAYER_LOGIN()
 	-- is the provider up to date?
 	if dataProvider then
 		local year, month, day, hours, minutes, seconds = dataProvider.date:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).*Z$")
-		local isOutdated = time() - time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) >= 345600 -- 4 days
-		if isOutdated then
-			DEFAULT_CHAT_FRAME:AddMessage("|cffFFFFFF" .. addonName .. "|r is using |cffFF6666out-of-date|r data. Please update the addon for more accurate Mythic Plus Scores.", 1, 1, 0)
+		IS_DB_OUTDATED = time() - time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) >= 345600 -- 4 days
+		if IS_DB_OUTDATED then
+			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUTDATED_DATABASE_S, addonName), 1, 1, 0)
 		end
 	end
 end

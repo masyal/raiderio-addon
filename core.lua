@@ -34,6 +34,7 @@ local L = ns.L
 local SCORE_TIERS = ns.scoreTiers
 local SCORE_TIERS_SIMPLE = ns.scoreTiersSimple
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
+local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
 local FACTION = {
 	["Alliance"] = 1,
 	["Horde"] = 2,
@@ -717,7 +718,7 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		end
 
 		if IS_DB_OUTDATED then
-			-- tooltip:AddLine(L.OUTDATED_DATABASE, 1, 1, 1, false)
+			tooltip:AddLine(L.OUTDATED_DATABASE, 0.9, 0.9, 0.9, false)
 		end
 
 		tooltip:Show()
@@ -759,7 +760,7 @@ function addon:PLAYER_LOGIN()
 	-- is the provider up to date?
 	if dataProvider then
 		local year, month, day, hours, minutes, seconds = dataProvider.date:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).*Z$")
-		IS_DB_OUTDATED = time() - time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) >= 345600 -- 4 days
+		IS_DB_OUTDATED = time() - time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds }) >= OUTDATED_SECONDS
 		if IS_DB_OUTDATED then
 			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUTDATED_DATABASE_S, addonName), 1, 1, 0)
 		end

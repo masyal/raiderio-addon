@@ -555,9 +555,9 @@ local function UnpackPayload(data)
 end
 
 -- search for the index of a name in the given sorted list
-local function BinarySearchForName(list, name)
-	local minIndex = 1
-	local maxIndex = #list
+local function BinarySearchForName(list, name, startIndex, endIndex)
+	local minIndex = startIndex
+	local maxIndex = endIndex
 	local mid, current
 
 	while minIndex <= maxIndex do
@@ -625,16 +625,19 @@ local function GetProviderData(name, realm, faction)
 		a, b = faction, faction
 	end
 	-- iterate through the data
-	local db, lu, r, d
+	local db, lu, r, d, base
 	for i = a, b do
 		db, lu = dataProvider["db" .. i], dataProvider["lookup" .. i]
 		-- sanity check that the data exists and is loaded, because it might not be for the requested faction
 		if db and lu then
 			r = db[realm]
 			if r then
-				d = BinarySearchForName(r, name)
+				d = BinarySearchForName(r, name, 2, #r)
 				if d then
-					return CacheProviderData(name, realm, i .. "-" .. d, lu[d * NUM_FIELDS_PER_CHARACTER], lu[(d * NUM_FIELDS_PER_CHARACTER) + 1])
+					-- `r[1]` = offset for this realm's characters in lookup table
+					-- `d` = index of found character in realm list. note: this is offset by one because of r[1]
+					base = r[1] + (d - 1) * NUM_FIELDS_PER_CHARACTER - (NUM_FIELDS_PER_CHARACTER - 1)
+					return CacheProviderData(name, realm, i .. "-" .. base, lu[base], lu[base + 1])
 				end
 			end
 		end

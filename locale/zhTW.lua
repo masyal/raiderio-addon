@@ -1,6 +1,6 @@
 local _, ns = ...
 
-if ns:IsSameLocale("zhCN") then
+if ns:IsSameLocale("zhTW") then
 	local L = ns.L or ns:NewLocale()
 
 	L.LOCALE_NAME = "zhTW"

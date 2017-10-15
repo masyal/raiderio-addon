@@ -5,6 +5,7 @@ local configFrame
 local dataProvider
 
 -- micro-optimization for more speed
+local floor = math.floor
 local lshift = bit.lshift
 local rshift = bit.rshift
 local band = bit.band
@@ -35,6 +36,7 @@ local SCORE_TIERS = ns.scoreTiers
 local SCORE_TIERS_SIMPLE = ns.scoreTiersSimple
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local OUTDATED_SECONDS = 86400 * 2 -- number of seconds before we start warning about outdated data
+local NUM_FIELDS_PER_CHARACTER = 2 -- number of fields in the database lookup table
 local FACTION = {
 	["Alliance"] = 1,
 	["Horde"] = 2,
@@ -556,10 +558,11 @@ end
 local function BinarySearchForName(list, name)
 	local minIndex = 1
 	local maxIndex = #list
+	local mid, current
 
 	while minIndex <= maxIndex do
-		local mid = math.floor((maxIndex + minIndex) / 2)
-		local current = list[mid]
+		mid = floor((maxIndex + minIndex) / 2)
+		current = list[mid]
 		if current == name then
 			return mid
 		elseif current < name then
@@ -568,8 +571,6 @@ local function BinarySearchForName(list, name)
 			maxIndex = mid - 1
 		end
 	end
-
-	return nil
 end
 
 -- caches the profile table and returns one using keys
@@ -615,8 +616,6 @@ local function CacheProviderData(name, realm, index, data1, data2)
 	-- return the freshly generated table
 	return cache
 end
-
-local NUM_FIELDS_PER_CHARACTER = 2
 
 -- returns the profile of a given character, faction is optional but recommended for quicker lookups
 local function GetProviderData(name, realm, faction)

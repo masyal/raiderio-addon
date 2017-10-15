@@ -552,6 +552,26 @@ local function UnpackPayload(data)
 		band(rshift(hiword, PAYLOAD_BITS), PAYLOAD_MASK)
 end
 
+-- search for the index of a name in the given sorted list
+local function BinarySearchForName(list, name)
+	local minIndex = 1
+	local maxIndex = #list
+
+	while minIndex <= maxIndex do
+		local mid = math.floor((maxIndex + minIndex) / 2)
+		local current = list[mid]
+		if current == name then
+			return mid
+		elseif current < name then
+			minIndex = mid + 1
+		else
+			maxIndex = mid - 1
+		end
+	end
+
+	return nil
+end
+
 -- caches the profile table and returns one using keys
 local function CacheProviderData(name, realm, index, data1, data2)
 	local cache = profileCache[index]
@@ -596,6 +616,8 @@ local function CacheProviderData(name, realm, index, data1, data2)
 	return cache
 end
 
+local NUM_FIELDS_PER_CHARACTER = 2
+
 -- returns the profile of a given character, faction is optional but recommended for quicker lookups
 local function GetProviderData(name, realm, faction)
 	-- figure out what faction tables we want to iterate
@@ -609,12 +631,9 @@ local function GetProviderData(name, realm, faction)
 		db, lu = dataProvider["db" .. i], dataProvider["lookup" .. i]
 		-- sanity check that the data exists and is loaded, because it might not be for the requested faction
 		if db and lu then
-			r = db[realm]
-			if r then
-				d = r[name]
-				if d then
-					return CacheProviderData(name, realm, i .. "-" .. d, lu[d], lu[d + 1])
-				end
+			d = BinarySearchForName(db[realm], name)
+			if d then
+				return CacheProviderData(name, realm, i .. "-" .. d, lu[d * NUM_FIELDS_PER_CHARACTER], lu[(d * NUM_FIELDS_PER_CHARACTER) + 1])
 			end
 		end
 	end

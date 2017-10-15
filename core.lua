@@ -630,9 +630,12 @@ local function GetProviderData(name, realm, faction)
 		db, lu = dataProvider["db" .. i], dataProvider["lookup" .. i]
 		-- sanity check that the data exists and is loaded, because it might not be for the requested faction
 		if db and lu then
-			d = BinarySearchForName(db[realm], name)
-			if d then
-				return CacheProviderData(name, realm, i .. "-" .. d, lu[d * NUM_FIELDS_PER_CHARACTER], lu[(d * NUM_FIELDS_PER_CHARACTER) + 1])
+			r = db[realm]
+			if r then
+				d = BinarySearchForName(r, name)
+				if d then
+					return CacheProviderData(name, realm, i .. "-" .. d, lu[d * NUM_FIELDS_PER_CHARACTER], lu[(d * NUM_FIELDS_PER_CHARACTER) + 1])
+				end
 			end
 		end
 	end

@@ -601,7 +601,7 @@ local function CacheProviderData(name, realm, index, data1, data2)
 		prevAllScore = data1[2],
 		mainScore = data1[3],
 		-- extract the scores per role
-		dpsScore = data2[1]
+		dpsScore = data2[1],
 		healScore = data2[2],
 		tankScore = data2[3],
 	}

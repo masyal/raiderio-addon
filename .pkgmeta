@@ -14,3 +14,7 @@ move-folders:
 ignore:
 	- db/RaiderIO_DB.bat
 	- build.sh
+	- tools
+	- package.json
+	- package-lock.json
+	- node_modules

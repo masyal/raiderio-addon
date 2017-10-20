@@ -36,3 +36,7 @@ nppBackup/
 
 # Build artifacts
 build
+sample-data
+
+# Node
+node_modules

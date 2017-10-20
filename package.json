@@ -1,0 +1,24 @@
+{
+  "name": "raiderio-addon",
+  "version": "1.0.0",
+  "description": "Raider.IO Addon Build Tools",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jahraphael/raiderio-addon.git"
+  },
+  "author": "Jah Raphael",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/jahraphael/raiderio-addon/issues"
+  },
+  "homepage": "https://github.com/jahraphael/raiderio-addon#readme",
+  "dependencies": {
+    "faker": "^4.1.0",
+    "lodash": "^4.17.4",
+    "moment": "^2.19.1"
+  }
+}

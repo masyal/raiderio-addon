@@ -6,6 +6,7 @@
 ## SavedVariables: RaiderIO_Config
 ## X-Website: https://raider.io
 
+db/db_regions.lua
 db/db_realms.lua
 db/db_score_tiers.lua
 

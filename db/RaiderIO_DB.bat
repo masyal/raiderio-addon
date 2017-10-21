@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set toc_interface=70200
+set toc_interface=70300
 set toc_author=Vladinator ^(Cyan-Darksorrow^) and Aspyr ^(Aspyrael-Skullcrusher^)
 set toc_addon=RaiderIO
 

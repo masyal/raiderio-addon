@@ -2,6 +2,7 @@ local addonName, ns = ...
 local uiHooks = {}
 local profileCache = {}
 local configFrame
+local dataProviderQueue = {}
 local dataProvider
 
 -- micro-optimization for more speed
@@ -66,6 +67,7 @@ local EGG = {
 
 -- session constants
 local PLAYER_FACTION
+local PLAYER_REGION
 local IS_DB_OUTDATED
 local OUTDATED_DAYS
 
@@ -82,6 +84,19 @@ end
 
 -- gets the current region name and index
 local function GetRegion()
+	-- use the player GUID to find the serverID and check the map for the region we are playing on
+	local guid = UnitGUID("player")
+	local server
+	if guid then
+		server = tonumber(strmatch(guid, "^Player%-(%d+)") or 0) or 0
+		local i = ns.regionIDs[server]
+		if i then
+			return REGIONS[i], i
+		end
+	end
+	-- alert the user to report this to the devs
+	DEFAULT_CHAT_FRAME:AddMessage(format(L.UNKNOWN_SERVER_FOUND, addonName, guid or "N/A", GetNormalizedRealmName() or "N/A"), 1, 1, 0)
+	-- fallback logic that might be wrong, but better than nothing...
 	local i = GetCurrentRegion()
 	return REGIONS[i], i
 end
@@ -103,23 +118,8 @@ end
 local function AddProvider(data)
 	-- make sure the object is what we expect it to be like
 	assert(type(data) == "table" and type(data.name) == "string" and type(data.region) == "string" and type(data.faction) == "number", "Raider.IO has been requested to load a database that isn't supported.")
-	-- is this provider relevant?
-	if GetRegion() == data.region then
-		-- append provider to the table
-		if dataProvider then
-			if not dataProvider.db1 then dataProvider.db1 = data.db1 end
-			if not dataProvider.db2 then dataProvider.db2 = data.db2 end
-			if not dataProvider.lookup1 then dataProvider.lookup1 = data.lookup1 end
-			if not dataProvider.lookup2 then dataProvider.lookup2 = data.lookup2 end
-		else
-			dataProvider = data
-		end
-	else
-		-- disable the provider addon from loading in the future
-		DisableAddOn(data.name)
-		-- wipe the table to free up memory
-		table.wipe(data)
-	end
+	-- queue it for later inspection
+	dataProviderQueue[#dataProviderQueue + 1] = data
 end
 
 -- creates the config frame
@@ -790,6 +790,30 @@ end
 function addon:PLAYER_LOGIN()
 	-- store our faction for later use
 	PLAYER_FACTION = GetFaction("player")
+	PLAYER_REGION = GetRegion()
+	-- pick the data provider that suits the players region
+	for i = #dataProviderQueue, 1, -1 do
+		local data = dataProviderQueue[i]
+		-- is this provider relevant?
+		if data.region == PLAYER_REGION then
+			-- append provider to the table
+			if dataProvider then
+				if not dataProvider.db1 then dataProvider.db1 = data.db1 end
+				if not dataProvider.db2 then dataProvider.db2 = data.db2 end
+				if not dataProvider.lookup1 then dataProvider.lookup1 = data.lookup1 end
+				if not dataProvider.lookup2 then dataProvider.lookup2 = data.lookup2 end
+			else
+				dataProvider = data
+			end
+		else
+			-- disable the provider addon from loading in the future
+			DisableAddOn(data.name)
+			-- wipe the table to free up memory
+			table.wipe(data)
+		end
+		-- remove reference from the queue
+		dataProviderQueue[i] = nil
+	end
 	-- is the provider up to date?
 	if dataProvider then
 		local year, month, day, hours, minutes, seconds = dataProvider.date:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).*Z$")
@@ -820,8 +844,7 @@ do
 	local function CopyURLForNameAndRealm(...)
 		local name, realm = GetNameAndRealm(...)
 		local realmSlug = GetRealmSlug(realm)
-		local region = GetRegion()
-		local url = format("https://raider.io/characters/%s/%s/%s", region, realmSlug, name)
+		local url = format("https://raider.io/characters/%s/%s/%s", PLAYER_REGION, realmSlug, name)
 		if IsModifiedClick("CHATLINK") then
 			local editBox = ChatFrame_OpenChat(url, DEFAULT_CHAT_FRAME)
 			editBox:HighlightText()

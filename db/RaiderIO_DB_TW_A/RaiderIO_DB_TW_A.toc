@@ -1,4 +1,4 @@
-## Interface: 70200
+## Interface: 70300
 ## Title: Raider.IO Mythic Plus (Taiwan - Alliance)
 ## Notes: Raider.IO Mythic Plus Scores DB for Taiwan - Alliance. Updated nightly.
 ## Author: Vladinator (Cyan-Darksorrow) and Aspyr (Aspyrael-Skullcrusher)

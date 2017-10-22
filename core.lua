@@ -19,6 +19,7 @@ local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
 local addonConfig = {
 	enableUnitTooltips = true,
 	enableLFGTooltips = true,
+	enableFriendsTooltips = true,
 	enableLFGDropdown = true,
 	enableWhoTooltips = true,
 	enableWhoMessages = true,
@@ -380,6 +381,7 @@ local function InitConfig()
 		config:CreateHeadline(L.MYTHIC_PLUS_SCORES)
 		config:CreateOptionToggle(L.SHOW_ON_PLAYER_UNITS, L.SHOW_ON_PLAYER_UNITS_DESC, "enableUnitTooltips")
 		config:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
+		config:CreateOptionToggle(L.SHOW_IN_FRIENDS, L.SHOW_IN_FRIENDS_DESC, "enableFriendsTooltips")
 		config:CreateOptionToggle(L.SHOW_ON_GUILD_ROSTER, L.SHOW_ON_GUILD_ROSTER_DESC, "enableGuildTooltips")
 		config:CreateOptionToggle(L.SHOW_IN_WHO_UI, L.SHOW_IN_WHO_UI_DESC, "enableWhoTooltips")
 		config:CreateOptionToggle(L.SHOW_IN_SLASH_WHO_RESULTS, L.SHOW_IN_SLASH_WHO_RESULTS_DESC, "enableWhoMessages")
@@ -840,6 +842,23 @@ end
 
 -- define our UI hooks
 do
+	-- extract character name and realm from BNet friend
+	local function GetNameAndRealmForBNetFriend(bnetIDAccount)
+		local index = BNGetFriendIndex(bnetIDAccount)
+		if index then
+			local numGameAccounts = BNGetNumFriendGameAccounts(index)
+			for i = 1, numGameAccounts do
+				local _, characterName, client, realmName, _, faction = BNGetFriendGameAccountInfo(index, i)
+				if client == BNET_CLIENT_WOW then
+					if realmName then
+						characterName = characterName .. "-" .. realmName:gsub("%s+", "")
+					end
+					return characterName, FACTION[faction]
+				end
+			end
+		end
+	end
+
 	-- copy profile link from dropdown menu
 	local function CopyURLForNameAndRealm(...)
 		local name, realm = GetNameAndRealm(...)
@@ -888,6 +907,9 @@ do
 		func = function()
 			local dropdownFrame = UIDROPDOWNMENU_INIT_MENU
 			local name, realm = dropdownFrame.name, dropdownFrame.server
+			if dropdownFrame.which:find("^BN_") then
+				name, realm = GetNameAndRealmForBNetFriend(dropdownFrame.bnetIDAccount), nil
+			end
 			if name then
 				CopyURLForNameAndRealm(name, realm)
 			end
@@ -1185,6 +1207,44 @@ do
 		return 1
 	end
 
+	-- FriendsFrame
+	uiHooks[#uiHooks + 1] = function()
+		local function OnEnter(self)
+			if addonConfig.enableFriendsTooltips == false then
+				return
+			end
+			local fullName, faction
+			if self.buttonType == FRIENDS_BUTTON_TYPE_BNET then
+				local bnetIDAccount = BNGetFriendInfo(self.id)
+				fullName, faction = GetNameAndRealmForBNetFriend(bnetIDAccount)
+			elseif self.buttonType == FRIENDS_BUTTON_TYPE_WOW then
+				fullName = GetFriendInfo(self.id)
+				faction = PLAYER_FACTION
+			end
+			if fullName then
+				GameTooltip:SetOwner(FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), 0)
+				if not AppendGameTooltip(GameTooltip, fullName, true, true, faction) then
+					GameTooltip:Hide()
+				end
+			else
+				GameTooltip:Hide()
+			end
+		end
+		local buttons = FriendsFrameFriendsScrollFrame.buttons
+		for i = 1, #buttons do
+			local button = buttons[i]
+			button:HookScript("OnEnter", OnEnter)
+		end
+		hooksecurefunc("FriendsFrameTooltip_Show", OnEnter)
+		hooksecurefunc(FriendsTooltip, "Hide", function()
+			if addonConfig.enableFriendsTooltips == false then
+				return
+			end
+			GameTooltip:Hide()
+		end)
+		return 1
+	end
+
 	-- Blizzard_GuildUI
 	uiHooks[#uiHooks + 1] = function()
 		if _G.GuildFrame then
@@ -1312,18 +1372,12 @@ do
 	-- DropDownMenu
 	uiHooks[#uiHooks + 1] = function()
 		if addonConfig.showDropDownCopyURL ~= false then
-			-- TODO: commented out those that might cause taint that broke stuff
 			local append = {
-				-- "PARTY",
+				"PARTY", -- TODO: taint?
 				"PLAYER",
-				-- "RAID_PLAYER",
-				-- "RAID",
 				"FRIEND",
-				-- "BN_FRIEND",
+				"BN_FRIEND",
 				"GUILD",
-				-- "CHAT_ROSTER",
-				-- "ARENAENEMY",
-				-- "WORLD_STATE_SCORE",
 			}
 			for i = 1, #append do
 				local key = append[i]

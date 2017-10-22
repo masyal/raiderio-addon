@@ -1222,7 +1222,7 @@ do
 				faction = PLAYER_FACTION
 			end
 			if fullName then
-				GameTooltip:SetOwner(FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), 0)
+				GameTooltip:SetOwner(FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
 				if not AppendGameTooltip(GameTooltip, fullName, true, true, faction) then
 					GameTooltip:Hide()
 				end

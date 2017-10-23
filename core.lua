@@ -575,10 +575,11 @@ local function BinarySearchForName(list, name, startIndex, endIndex)
 	end
 end
 
-local function BreakWords(dword)
-	-- 4294967296 == (1 << 32). Meaning, shift to get the hi-word.
+local function Split64BitNumber(dword)
+	-- 0x100000000 == (1 << 32). Meaning, shift to get the hi-word.
 	-- WoW lua bit operators seem to only work on the lo-word (?)
-	return dword / 4294967296, band(dword, lshift(1, 32) - 1)
+	local lo = band(dword, 0xfffffffff)
+	return lo, (dword - lo) / 0x100000000
 end
 
 -- read given number of bits from the chosen offset with max of 52 bits
@@ -609,8 +610,7 @@ local function UnpackCharacterData(data1, data2, data3)
 	--
 	-- Field 1
 	--
-	lo, hi = BreakWords(data1)
-
+	lo, hi = Split64BitNumber(data1)
 	results.allScore = ReadBits(lo, hi, 0, PAYLOAD_BITS)
 	results.prevAllScore = ReadBits(lo, hi, PAYLOAD_BITS, PAYLOAD_BITS)
 	results.mainScore = ReadBits(lo, hi, PAYLOAD_BITS2, PAYLOAD_BITS)
@@ -619,7 +619,7 @@ local function UnpackCharacterData(data1, data2, data3)
 	--
 	-- Field 2
 	--
-	lo, hi = BreakWords(data2)
+	lo, hi = Split64BitNumber(data2)
 
 	results.dpsScore = ReadBits(lo, hi, 0, PAYLOAD_BITS)
 	results.healScore = ReadBits(lo, hi, PAYLOAD_BITS, PAYLOAD_BITS)
@@ -634,7 +634,7 @@ local function UnpackCharacterData(data1, data2, data3)
 	--
 	-- Field 3
 	--
-	lo, hi = BreakWords(data3)
+	lo, hi = Split64BitNumber(data3)
 
 	local offset = 0
 	while dungeonIndex < #ns.dungeons do
@@ -694,9 +694,6 @@ local function CacheProviderData(name, realm, index, data1, data2, data3)
 	-- TODO: can we make this table read-only? raw methods will bypass metatable restrictions we try to enforce
 	-- build this custom table in order to avoid users tainting the provider database
 	cache = {
-		data1 = data1,
-		data2 = data2,
-		data3 = data3,
 		region = dataProvider.region,
 		faction = dataProvider.faction,
 		date = dataProvider.date,
@@ -822,7 +819,10 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			tooltip:AddLine(profile.name .. " (" .. profile.realm .. ")", 1, 1, 1, false)
 		end
 
-		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, profile.allScore .. " (+" .. profile.maxDungeonLevel .. ")", 1, 0.85, 0, GetScoreColor(profile.allScore))
+		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, profile.allScore, 1, 0.85, 0, GetScoreColor(profile.allScore))
+
+		-- TODO: look up actual dungeon
+		tooltip:AddDoubleLine("Best Run", "+" .. profile.maxDungeonLevel .. " " .. "COEN", 1, 1, 1, GetScoreColor(profile.allScore))
 
 		-- show tank, healer and dps scores
 		local scores = {}
@@ -852,8 +852,33 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		end
 
 		if addonConfig.showMainsScore ~= false and profile.mainScore > profile.allScore then
-			tooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 0.8, 0.8, 0.8, GetScoreColor(profile.mainScore))
+			tooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore))
 		end
+
+		local highlights = {}
+		if profile.cuttingEdgeCurrentTier then
+			highlights[1 + #highlights] = "TOS Cutting Edge"
+		elseif profile.aotcCurrentTier then
+			highlights[1 + #highlights] = "TOS AOTC"
+		end
+
+		if profile.keystoneFifteenPlus then
+			highlights[1 + #highlights] = "KSM +15"
+		elseif profile.keystoneTenPlus then
+			highlights[1 + #highlights] = "KSC +10"
+		elseif profile.keystoneFivePlus then
+			highlights[1 + #highlights] = "KSI +5"
+		end
+
+		local highlightStr = ""
+		for i = 1, #highlights do
+			if i > 1 then
+				highlightStr = highlightStr .. ", "
+			end
+			highlightStr = highlightStr .. highlights[i]
+		end
+
+		tooltip:AddLine(highlightStr, 1, 1, 1, false)
 
 		do
 			local t = EGG[profile.region]

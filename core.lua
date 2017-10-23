@@ -1373,7 +1373,6 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if addonConfig.showDropDownCopyURL ~= false then
 			local append = {
-				"PARTY", -- TODO: taint?
 				"PLAYER",
 				"FRIEND",
 				"BN_FRIEND",

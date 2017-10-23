@@ -1373,7 +1373,7 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if addonConfig.showDropDownCopyURL ~= false then
 			local append = {
-				"PARTY", -- TODO: taint?
+				-- "PARTY", -- disabled due to it causing taint issues
 				"PLAYER",
 				"FRIEND",
 				"BN_FRIEND",

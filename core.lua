@@ -38,7 +38,7 @@ local SCORE_TIERS = ns.scoreTiers
 local SCORE_TIERS_SIMPLE = ns.scoreTiersSimple
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local OUTDATED_SECONDS = 86400 * 2 -- number of seconds before we start warning about outdated data
-local NUM_FIELDS_PER_CHARACTER = 2 -- number of fields in the database lookup table
+local NUM_FIELDS_PER_CHARACTER = 3 -- number of fields in the database lookup table for each character
 local FACTION = {
 	["Alliance"] = 1,
 	["Horde"] = 2,
@@ -575,8 +575,112 @@ local function BinarySearchForName(list, name, startIndex, endIndex)
 	end
 end
 
+local function BreakWords(dword)
+	-- 4294967296 == (1 << 32). Meaning, shift to get the hi-word.
+	-- WoW lua bit operators seem to only work on the lo-word (?)
+	return dword / 4294967296, band(dword, lshift(1, 32) - 1)
+end
+
+-- read given number of bits from the chosen offset with max of 52 bits
+-- assumed that lo contains 32 bits and hi contains 20 bits
+local function ReadBits(lo, hi, offset, bits)
+	if offset < 32 and (offset + bits) > 32 then
+    -- reading across boundary
+    local mask = lshift(1, (offset + bits) - 32) - 1
+    local p1 = rshift(lo, offset)
+    local p2 = lshift(band(hi, mask), 32 - offset)
+    return p1 + p2
+	else
+		local mask = lshift(1, bits) - 1
+		if offset < 32 then
+			-- standard read from loword
+			return band(rshift(lo, offset), mask)
+		else
+			-- standard read from hiword
+			return band(rshift(hi, offset - 32), mask)
+		end
+	end
+end
+
+local function UnpackCharacterData(data1, data2, data3)
+	local results = {}
+	local lo, hi
+
+	--
+	-- Field 1
+	--
+	lo, hi = BreakWords(data1)
+
+	results.allScore = ReadBits(lo, hi, 0, PAYLOAD_BITS)
+	results.prevAllScore = ReadBits(lo, hi, PAYLOAD_BITS, PAYLOAD_BITS)
+	results.mainScore = ReadBits(lo, hi, PAYLOAD_BITS2, PAYLOAD_BITS)
+	results.tankScore = ReadBits(lo, hi, PAYLOAD_BITS3, PAYLOAD_BITS)
+
+	--
+	-- Field 2
+	--
+	lo, hi = BreakWords(data2)
+
+	results.dpsScore = ReadBits(lo, hi, 0, PAYLOAD_BITS)
+	results.healScore = ReadBits(lo, hi, PAYLOAD_BITS, PAYLOAD_BITS)
+
+	local dungeonIndex = 1
+	results.dungeons = {}
+	for i = 1, 5 do
+		results.dungeons[dungeonIndex]	= ReadBits(lo, hi, PAYLOAD_BITS + dungeonIndex, 1)
+		dungeonIndex = dungeonIndex + 1
+	end
+
+	--
+	-- Field 3
+	--
+	lo, hi = BreakWords(data3)
+
+	local offset = 0
+	while dungeonIndex < #ns.dungeons do
+		results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
+		dungeonIndex = dungeonIndex + 1
+		offset = offset + 5
+	end
+
+	local maxDungeonLevel = 0
+	local maxDungeonIndex = 1
+	for i = 1, #results.dungeons do
+		if results.dungeons[i] > maxDungeonLevel then
+			maxDungeonLevel = results.dungeons[i]
+			maxDungeonIndex = i
+		end
+	end
+
+	results.maxDungeonLevel = maxDungeonLevel
+	results.maxDungeonIndex = maxDungeonIndex
+
+	results.keystoneFivePlus = ReadBits(lo, hi, offset, 1)
+	offset = offset + 1
+
+	results.keystoneTenPlus = ReadBits(lo, hi, offset, 1)
+	offset = offset + 1
+
+	results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 1)
+	offset = offset + 1
+
+	results.aotcPrevTier = ReadBits(lo, hi, offset, 1)
+	offset = offset + 1
+
+	results.cuttingEdgePrevTier = ReadBits(lo, hi, offset, 1)
+	offset = offset + 1
+
+	results.aotcCurrentTier = ReadBits(lo, hi, offset, 1)
+	offset = offset + 1
+
+	results.cuttingEdgeCurrentTier = ReadBits(lo, hi, offset, 1)
+	offset = offset + 1
+
+	return results
+end
+
 -- caches the profile table and returns one using keys
-local function CacheProviderData(name, realm, index, data1, data2)
+local function CacheProviderData(name, realm, index, data1, data2, data3)
 	local cache = profileCache[index]
 
 	-- prefer to re-use cached profiles
@@ -585,12 +689,14 @@ local function CacheProviderData(name, realm, index, data1, data2)
 	end
 
 	-- unpack the payloads into these tables
-	data1 = {UnpackPayload(data1)}
-	data2 = {UnpackPayload(data2)}
+	payload = UnpackCharacterData(data1, data2, data3)
 
 	-- TODO: can we make this table read-only? raw methods will bypass metatable restrictions we try to enforce
 	-- build this custom table in order to avoid users tainting the provider database
 	cache = {
+		data1 = data1,
+		data2 = data2,
+		data3 = data3,
 		region = dataProvider.region,
 		faction = dataProvider.faction,
 		date = dataProvider.date,
@@ -599,13 +705,23 @@ local function CacheProviderData(name, realm, index, data1, data2)
 		name = name,
 		realm = realm,
 		-- current and last season overall score
-		allScore = data1[1],
-		prevAllScore = data1[2],
-		mainScore = data1[3],
+		allScore = payload.allScore,
+		prevAllScore = payload.prevAllScore,
+		mainScore = payload.mainScore,
 		-- extract the scores per role
-		dpsScore = data2[1],
-		healScore = data2[2],
-		tankScore = data2[3],
+		dpsScore = payload.dpsScore,
+		healScore = payload.healScore,
+		tankScore = payload.tankScore,
+		-- dungeons they have completed
+		dungeons = payload.dungeons,
+		maxDungeonLevel = payload.maxDungeonLevel,
+		keystoneFivePlus = payload.keystoneFivePlus,
+		keystoneTenPlus = payload.keystoneTenPlus,
+		keystoneFifteenPlus = payload.keystoneFifteenPlus,
+		aotcPrevTier = payload.aotcPrevTier,
+		cuttingEdgePrevTier = payload.cuttingEdgePrevTier,
+		aotcCurrentTier = payload.aotcCurrentTier,
+		cuttingEdgeCurrentTier = payload.cuttingEdgeCurrentTier,
 	}
 
 	-- append additional role information
@@ -639,7 +755,7 @@ local function GetProviderData(name, realm, faction)
 					-- `r[1]` = offset for this realm's characters in lookup table
 					-- `d` = index of found character in realm list. note: this is offset by one because of r[1]
 					base = r[1] + (d - 1) * NUM_FIELDS_PER_CHARACTER - (NUM_FIELDS_PER_CHARACTER - 1)
-					return CacheProviderData(name, realm, i .. "-" .. base, lu[base], lu[base + 1])
+					return CacheProviderData(name, realm, i .. "-" .. base, lu[base], lu[base + 1], lu[base + 2])
 				end
 			end
 		end
@@ -706,7 +822,7 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			tooltip:AddLine(profile.name .. " (" .. profile.realm .. ")", 1, 1, 1, false)
 		end
 
-		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, profile.allScore, 1, 0.85, 0, GetScoreColor(profile.allScore))
+		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, profile.allScore .. " (+" .. profile.maxDungeonLevel .. ")", 1, 0.85, 0, GetScoreColor(profile.allScore))
 
 		-- show tank, healer and dps scores
 		local scores = {}

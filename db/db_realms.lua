@@ -1,5 +1,60 @@
 local _, ns = ...
 
+ns.dungeons = {
+  [1] = {
+    ["short_name"] = "NL",
+    ["id"] = 7546,
+  },
+  [2] = {
+    ["short_name"] = "HOV",
+    ["id"] = 7672,
+  },
+  [3] = {
+    ["short_name"] = "DHT",
+    ["id"] = 7673,
+  },
+  [4] = {
+    ["short_name"] = "VOTW",
+    ["id"] = 7787,
+  },
+  [5] = {
+    ["short_name"] = "BRH",
+    ["id"] = 7805,
+  },
+  [6] = {
+    ["short_name"] = "MOS",
+    ["id"] = 7812,
+  },
+  [7] = {
+    ["short_name"] = "ARC",
+    ["id"] = 7855,
+  },
+  [8] = {
+    ["short_name"] = "EOA",
+    ["id"] = 8040,
+  },
+  [9] = {
+    ["short_name"] = "COS",
+    ["id"] = 8079,
+  },
+  [10] = {
+    ["short_name"] = "COEN",
+    ["id"] = 8527,
+  },
+  [11] = {
+    ["short_name"] = "SEAT",
+    ["id"] = 8910,
+  },
+  [12] = {
+    ["short_name"] = "LOWR",
+    ["id"] = 999998,
+  },
+  [13] = {
+    ["short_name"] = "UPPR",
+    ["id"] = 999999,
+  },
+}
+
 ns.realmSlugs = {
   ["Abbendis"] = "abbendis",
   ["AbyssalDepths"] = "abyssal-depths",

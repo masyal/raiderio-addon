@@ -36,8 +36,9 @@ local addonConfig = {
 local L = ns.L
 local SCORE_TIERS = ns.scoreTiers
 local SCORE_TIERS_SIMPLE = ns.scoreTiersSimple
+local DUNGEONS = ns.dungeons
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
-local OUTDATED_SECONDS = 86400 * 2 -- number of seconds before we start warning about outdated data
+local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
 local NUM_FIELDS_PER_CHARACTER = 3 -- number of fields in the database lookup table for each character
 local FACTION = {
 	["Alliance"] = 1,
@@ -664,18 +665,6 @@ local function UnpackCharacterData(data1, data2, data3)
 	results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 1)
 	offset = offset + 1
 
-	results.aotcPrevTier = ReadBits(lo, hi, offset, 1)
-	offset = offset + 1
-
-	results.cuttingEdgePrevTier = ReadBits(lo, hi, offset, 1)
-	offset = offset + 1
-
-	results.aotcCurrentTier = ReadBits(lo, hi, offset, 1)
-	offset = offset + 1
-
-	results.cuttingEdgeCurrentTier = ReadBits(lo, hi, offset, 1)
-	offset = offset + 1
-
 	return results
 end
 
@@ -712,13 +701,10 @@ local function CacheProviderData(name, realm, index, data1, data2, data3)
 		-- dungeons they have completed
 		dungeons = payload.dungeons,
 		maxDungeonLevel = payload.maxDungeonLevel,
+		maxDungeonName = DUNGEONS[payload.maxDungeonIndex] and DUNGEONS[payload.maxDungeonIndex].shortName or '',
 		keystoneFivePlus = payload.keystoneFivePlus,
 		keystoneTenPlus = payload.keystoneTenPlus,
 		keystoneFifteenPlus = payload.keystoneFifteenPlus,
-		aotcPrevTier = payload.aotcPrevTier,
-		cuttingEdgePrevTier = payload.cuttingEdgePrevTier,
-		aotcCurrentTier = payload.aotcCurrentTier,
-		cuttingEdgeCurrentTier = payload.cuttingEdgeCurrentTier,
 	}
 
 	-- append additional role information
@@ -821,8 +807,9 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 
 		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, profile.allScore, 1, 0.85, 0, GetScoreColor(profile.allScore))
 
-		-- TODO: look up actual dungeon
-		tooltip:AddDoubleLine("Best Run", "+" .. profile.maxDungeonLevel .. " " .. "COEN", 1, 1, 1, GetScoreColor(profile.allScore))
+		if profile.maxDungeonLevel > 0 then
+			tooltip:AddDoubleLine(L.BEST_RUN, "+" .. profile.maxDungeonLevel .. " " .. profile.maxDungeonName, 1, 1, 1, GetScoreColor(profile.allScore))
+		end
 
 		-- show tank, healer and dps scores
 		local scores = {}
@@ -856,18 +843,12 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		end
 
 		local highlights = {}
-		if profile.cuttingEdgeCurrentTier then
-			highlights[1 + #highlights] = "TOS Cutting Edge"
-		elseif profile.aotcCurrentTier then
-			highlights[1 + #highlights] = "TOS AOTC"
-		end
-
 		if profile.keystoneFifteenPlus then
-			highlights[1 + #highlights] = "KSM +15"
+			highlights[1 + #highlights] = L.KEYSTONE_COMPLETED_15
 		elseif profile.keystoneTenPlus then
-			highlights[1 + #highlights] = "KSC +10"
+			highlights[1 + #highlights] = L.KEYSTONE_COMPLETED_10
 		elseif profile.keystoneFivePlus then
-			highlights[1 + #highlights] = "KSI +5"
+			highlights[1 + #highlights] = L.KEYSTONE_COMPLETED_5
 		end
 
 		local highlightStr = ""

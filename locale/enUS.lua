@@ -55,5 +55,9 @@ L.MAINS_SCORE_COLON = "Main's Score: "
 L.TANK = "Tank"
 L.HEALER = "Healer"
 L.DPS = "DPS"
+L.BEST_RUN = "Best Run"
+L.KEYSTONE_COMPLETED_15 = "+15 Completed"
+L.KEYSTONE_COMPLETED_10 = "+10 Completed"
+L.KEYSTONE_COMPLETED_5 = "+5 Completed"
 
 ns.L = L

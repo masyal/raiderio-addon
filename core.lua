@@ -14,6 +14,7 @@ local PAYLOAD_BITS = 13
 local PAYLOAD_BITS2 = PAYLOAD_BITS * 2
 local PAYLOAD_BITS3 = PAYLOAD_BITS * 3
 local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
+local LOOKUP_MAX_SIZE = floor(2^18-1)
 
 -- default config
 local addonConfig = {
@@ -726,7 +727,7 @@ local function GetProviderData(name, realm, faction)
 		a, b = faction, faction
 	end
 	-- iterate through the data
-	local db, lu, r, d, base
+	local db, lu, r, d, base, bucketID, bucket
 	for i = a, b do
 		db, lu = dataProvider["db" .. i], dataProvider["lookup" .. i]
 		-- sanity check that the data exists and is loaded, because it might not be for the requested faction
@@ -737,8 +738,12 @@ local function GetProviderData(name, realm, faction)
 				if d then
 					-- `r[1]` = offset for this realm's characters in lookup table
 					-- `d` = index of found character in realm list. note: this is offset by one because of r[1]
+					-- `bucketID` is the index in the lookup table that contains that characters data
 					base = r[1] + (d - 1) * NUM_FIELDS_PER_CHARACTER - (NUM_FIELDS_PER_CHARACTER - 1)
-					return CacheProviderData(name, realm, i .. "-" .. base, lu[base], lu[base + 1], lu[base + 2])
+					bucketID = floor(base / LOOKUP_MAX_SIZE)
+					bucket = lu[bucketID + 1]
+					base = base - bucketID * LOOKUP_MAX_SIZE
+					return CacheProviderData(name, realm, i .. "-" .. bucketID .. "-" .. base, bucket[base], bucket[base + 1], bucket[base + 2])
 				end
 			end
 		end

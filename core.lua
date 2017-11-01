@@ -789,12 +789,12 @@ end
 
 -- returns score color using item colors
 local function GetScoreColor(score)
-	if addonConfig.disableScoreColors == true then
+	if addonConfig.disableScoreColors then
 		return 1, 1, 1
 	end
 	local r, g, b = 0.62, 0.62, 0.62
 	if type(score) == "number" then
-		if addonConfig.showSimpleScoreColors == false then
+		if not addonConfig.showSimpleScoreColors then
 			for i = 1, #SCORE_TIERS do
 				local tier = SCORE_TIERS[i]
 				if score >= tier.score then
@@ -900,11 +900,11 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			end
 		end
 
-		if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
+		if addonConfig.showPrevAllScore and profile.prevAllScore > profile.allScore then
 			tooltip:AddDoubleLine(L.PREV_SEASON_SCORE, profile.prevAllScore, 0.8, 0.8, 0.8, GetScoreColor(profile.prevAllScore))
 		end
 
-		if addonConfig.showMainsScore ~= false and profile.mainScore > profile.allScore then
+		if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
 			tooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore))
 		end
 
@@ -1058,6 +1058,11 @@ end
 
 -- modifier key is toggled, update the tooltip if needed
 function addon:MODIFIER_STATE_CHANGED()
+	-- if we always draw the full tooltip then this part of the code shouldn't be running at all
+	if addonConfig.alwaysExtendTooltip then
+		return
+	end
+	-- check if the mod state has changed, and only then run the update function
 	local m = IsModifierKeyDown()
 	local l = addon.modKey
 	addon.modKey = m
@@ -1155,7 +1160,7 @@ do
 	-- GameTooltip
 	uiHooks[#uiHooks + 1] = function()
 		GameTooltip:HookScript("OnTooltipSetUnit", function(self)
-			if addonConfig.enableUnitTooltips == false then
+			if not addonConfig.enableUnitTooltips then
 				return
 			end
 			local _, unit = self:GetUnit()
@@ -1171,7 +1176,7 @@ do
 			local OnEnter, OnLeave, OnClick
 			-- application queue
 			function OnEnter(self)
-				if addonConfig.enableLFGTooltips == false then
+				if not addonConfig.enableLFGTooltips then
 					return
 				end
 				if self.applicantID and self.Members then
@@ -1367,7 +1372,7 @@ do
 			end
 			function OnClick(self, button)
 				if button == "RightButton" then
-					if addonConfig.showDropDownCopyURL == false then
+					if not addonConfig.showDropDownCopyURL then
 						return
 					end
 					if self.resultID then
@@ -1404,7 +1409,7 @@ do
 	-- WhoFrame
 	uiHooks[#uiHooks + 1] = function()
 		local function OnEnter(self)
-			if addonConfig.enableWhoTooltips == false then
+			if not addonConfig.enableWhoTooltips then
 				return
 			end
 			if self.whoIndex then
@@ -1436,7 +1441,7 @@ do
 	-- FriendsFrame
 	uiHooks[#uiHooks + 1] = function()
 		local function OnEnter(self)
-			if addonConfig.enableFriendsTooltips == false then
+			if not addonConfig.enableFriendsTooltips then
 				return
 			end
 			local fullName, faction
@@ -1463,7 +1468,7 @@ do
 		end
 		hooksecurefunc("FriendsFrameTooltip_Show", OnEnter)
 		hooksecurefunc(FriendsTooltip, "Hide", function()
-			if addonConfig.enableFriendsTooltips == false then
+			if not addonConfig.enableFriendsTooltips then
 				return
 			end
 			GameTooltip:Hide()
@@ -1475,7 +1480,7 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.GuildFrame then
 			local function OnEnter(self)
-				if addonConfig.enableGuildTooltips == false then
+				if not addonConfig.enableGuildTooltips then
 					return
 				end
 				if self.guildIndex then
@@ -1527,14 +1532,14 @@ do
 			text = ""
 
 			-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
-			if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
+			if addonConfig.showPrevAllScore and profile.prevAllScore > profile.allScore then
 				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. " (" .. L.PREV_SEASON_COLON .. profile.prevAllScore .. "). "
 			elseif profile.allScore > 0 then
 				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. ". "
 			end
 
 			-- show the mains season score
-			if addonConfig.showMainsScore ~= false and profile.mainScore > profile.allScore then
+			if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
 				text = text .. "(" .. L.MAINS_SCORE_COLON .. profile.mainScore .. "). "
 			end
 
@@ -1567,7 +1572,7 @@ do
 			return text
 		end
 		local function filter(self, event, text, ...)
-			if addonConfig.enableWhoMessages ~= false and event == "CHAT_MSG_SYSTEM" then
+			if addonConfig.enableWhoMessages and event == "CHAT_MSG_SYSTEM" then
 				nameLink, name, level, race, class, guild, zone = text:match(FORMAT_GUILD)
 				if not zone then
 					guild = nil
@@ -1597,7 +1602,7 @@ do
 
 	-- DropDownMenu
 	uiHooks[#uiHooks + 1] = function()
-		if addonConfig.showDropDownCopyURL ~= false then
+		if addonConfig.showDropDownCopyURL then
 			local append = {
 				"PARTY", -- TODO: taint?
 				"PLAYER",
@@ -1618,7 +1623,7 @@ do
 	--[=[
 	uiHooks[#uiHooks + 1] = function()
 		local function OnSetItem(tooltip)
-			if addonConfig.enableKeystoneTooltips == false then
+			if not addonConfig.enableKeystoneTooltips then
 				return
 			end
 			local _, link = tooltip:GetItem()

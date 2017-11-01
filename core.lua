@@ -6,6 +6,9 @@ local dataProviderQueue = {}
 local dataProvider
 
 -- micro-optimization for more speed
+local unpack = unpack
+local sort = table.sort
+local wipe = table.wipe
 local floor = math.floor
 local lshift = bit.lshift
 local rshift = bit.rshift
@@ -31,6 +34,7 @@ local addonConfig = {
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
 	disableScoreColors = false,
+	alwaysExtendTooltip = false,
 }
 
 -- constants
@@ -73,6 +77,14 @@ local PLAYER_FACTION
 local PLAYER_REGION
 local IS_DB_OUTDATED
 local OUTDATED_DAYS
+
+-- tooltip related hooks and storage
+local tooltipArgs = {}
+local tooltipHooks = {}
+
+function tooltipHooks.Wipe()
+	wipe(tooltipArgs)
+end
 
 -- create the addon core frame
 local addon = CreateFrame("Frame")
@@ -394,6 +406,7 @@ local function InitConfig()
 		config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
 		config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 		config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
+		config:CreateOptionToggle(L.ALWAYS_SHOW_EXTENDED_INFO, L.ALWAYS_SHOW_EXTENDED_INFO_DESC, "alwaysExtendTooltip")
 		-- config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 
 		config:CreatePadding()
@@ -503,6 +516,9 @@ local function Init()
 
 	-- purge cache after zoning
 	addon:RegisterEvent("PLAYER_ENTERING_WORLD")
+
+	-- detect toggling of the modifier keys
+	addon:RegisterEvent("MODIFIER_STATE_CHANGED")
 end
 
 -- retrieves the url slug for a given realm name
@@ -663,13 +679,13 @@ local function UnpackCharacterData(data1, data2, data3)
 	results.maxDungeonLevel = maxDungeonLevel
 	results.maxDungeonIndex = maxDungeonIndex
 
-	results.keystoneFivePlus = ReadBits(lo, hi, offset, 1) == 1 and true or false
+	results.keystoneFivePlus = ReadBits(lo, hi, offset, 1) == 1
 	offset = offset + 1
 
-	results.keystoneTenPlus = ReadBits(lo, hi, offset, 1) == 1 and true or false
+	results.keystoneTenPlus = ReadBits(lo, hi, offset, 1) == 1
 	offset = offset + 1
 
-	results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 1) == 1 and true or false
+	results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 1) == 1
 	offset = offset + 1
 
 	return results
@@ -805,7 +821,30 @@ end
 -- appends score data to a given tooltip
 local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction)
 	local profile = GetScore(arg1, nil, forceFaction)
+
+	-- sanity check that the profile exists
 	if profile then
+
+		-- setup tooltip hook
+		if not tooltipHooks[tooltip] then
+			tooltipHooks[tooltip] = true
+			tooltip:HookScript("OnHide", tooltipHooks.Wipe)
+		end
+
+		-- assign the current function args for later use
+		tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5] = tooltip, arg1, forceNoPadding, forceAddName, forceFaction
+
+		-- should we show the extended version of the data?
+		local showExtendedTooltip = addon.modKey or addonConfig.alwaysExtendTooltip
+
+		-- TODO: always extend for these frames, as it's not as easy to extend or collapse these...
+		--if 
+		--	(tooltip:GetOwner() and tooltip:GetOwner():GetParent() == WhoFrame) or 
+		--	(tooltip:GetOwner() and tooltip:GetOwner():GetParent() == LFGListSearchPanelScrollFrameScrollChild)
+		--then
+		--	showExtendedTooltip = true
+		--end
+
 		-- add padding line if it looks nicer on the tooltip, also respect users preference
 		if not forceNoPadding then
 			tooltip:AddLine(" ")
@@ -844,26 +883,28 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			tooltip:AddDoubleLine(L.BEST_RUN, highlightStr, 1, 1, 1, GetScoreColor(profile.allScore))
 		end
 
-		-- show tank, healer and dps scores
-		local scores = {}
+		-- show tank, healer and dps scores (only when the tooltip is extended)
+		if showExtendedTooltip then
+			local scores = {}
 
-		if profile.tankScore then
-			scores[#scores + 1] = { L.TANK_SCORE, profile.tankScore }
-		end
+			if profile.tankScore then
+				scores[#scores + 1] = { L.TANK_SCORE, profile.tankScore }
+			end
 
-		if profile.healScore then
-			scores[#scores + 1] = { L.HEALER_SCORE, profile.healScore }
-		end
+			if profile.healScore then
+				scores[#scores + 1] = { L.HEALER_SCORE, profile.healScore }
+			end
 
-		if profile.dpsScore then
-			scores[#scores + 1] = { L.DPS_SCORE, profile.dpsScore }
-		end
+			if profile.dpsScore then
+				scores[#scores + 1] = { L.DPS_SCORE, profile.dpsScore }
+			end
 
-		table.sort(scores, function (a, b) return a[2] > b[2] end)
+			sort(scores, function (a, b) return a[2] > b[2] end)
 
-		for i = 1, #scores do
-			if scores[i][2] > 0 then
-				tooltip:AddDoubleLine(scores[i][1], scores[i][2], 1, 1, 1, GetScoreColor(scores[i][2]))
+			for i = 1, #scores do
+				if scores[i][2] > 0 then
+					tooltip:AddDoubleLine(scores[i][1], scores[i][2], 1, 1, 1, GetScoreColor(scores[i][2]))
+				end
 			end
 		end
 
@@ -896,6 +937,51 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 
 		return 1
 	end
+end
+
+-- triggers a tooltip update of the current visible tooltip
+local function UpdateAppendedGameTooltip()
+	-- sanity check that the args exist
+	if not tooltipArgs[1] or not tooltipArgs[1]:GetOwner() then return end
+	-- unpack the args
+	local tooltip, arg1, forceNoPadding, forceAddName, forceFaction = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5]
+	-- units only need to set the unit again to refresh the tooltip contents
+	local _, unit = tooltip:GetUnit()
+	if unit then
+		tooltip:SetUnit(unit)
+		return
+	end
+	-- TODO: at the moment the WhoFrame and LFDList frames are not updated to handle this type of behavior (inline appending data)
+	if
+		(tooltip:GetOwner() and tooltip:GetOwner():GetParent() == WhoFrame) or 
+		(tooltip:GetOwner() and tooltip:GetOwner():GetParent() == LFGListSearchPanelScrollFrameScrollChild)
+	then
+		return
+	end
+	-- TODO: this needs to be improved for the tooltips to properly work in the WhoFrame and LFDList
+	-- other tooltip types needs to remember the position, hide, show and repopulate
+	local o1, o2, o3, o4 = tooltip:GetOwner()
+	local p1, p2, p3, p4, p5 = tooltip:GetPoint(1)
+	local a1, a2, a3 = tooltip:GetAnchorType()
+	tooltip:Hide()
+	if o1 then
+		o2 = a1
+		if p4 then
+			o3 = p4
+		end
+		if p5 then
+			o4 = p5
+		end
+		tooltip:SetOwner(o1, o2, o3, o4)
+	end
+	if p1 then
+		tooltip:SetPoint(p1, p2, p3, p4, p5)
+	end
+	if not o1 and a1 then
+		tooltip:SetAnchorType(a1, a2, a3)
+	end
+	-- we need to run this again to finalize the tooltip
+	AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction)
 end
 
 -- publicly exposed API
@@ -947,7 +1033,7 @@ function addon:PLAYER_LOGIN()
 			-- disable the provider addon from loading in the future
 			DisableAddOn(data.name)
 			-- wipe the table to free up memory
-			table.wipe(data)
+			wipe(data)
 		end
 		-- remove reference from the queue
 		dataProviderQueue[i] = nil
@@ -973,7 +1059,17 @@ end
 -- we enter the world (after a loading screen, int/out of instances)
 function addon:PLAYER_ENTERING_WORLD()
 	-- we wipe the cached profiles in between loading screens, this seems like a good way get rid of memory use over time
-	table.wipe(profileCache)
+	wipe(profileCache)
+end
+
+-- modifier key is toggled, update the tooltip if needed
+function addon:MODIFIER_STATE_CHANGED()
+	local m = IsModifierKeyDown()
+	local l = addon.modKey
+	addon.modKey = m
+	if m ~= l then
+		UpdateAppendedGameTooltip()
+	end
 end
 
 -- define our UI hooks
@@ -1463,7 +1559,7 @@ do
 				scores[#scores + 1] = { L.DPS, profile.dpsScore }
 			end
 
-			table.sort(scores, function (a, b) return a[2] > b[2] end)
+			sort(scores, function (a, b) return a[2] > b[2] end)
 
 			for i = 1, #scores do
 				if scores[i][2] > 0 then

@@ -1604,11 +1604,10 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if addonConfig.showDropDownCopyURL then
 			local append = {
-				"PARTY", -- TODO: taint?
 				"PLAYER",
 				"FRIEND",
 				"BN_FRIEND",
-				"GUILD",
+				-- "GUILD",
 			}
 			for i = 1, #append do
 				local key = append[i]

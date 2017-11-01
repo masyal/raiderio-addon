@@ -125,7 +125,7 @@ ns.dungeons = {
   [3] = {
     ["id"] = 7673,
     ["name"] = "Darkheart Thicket",
-    ["shortName"] = "DT"
+    ["shortName"] = "DHT"
   },
   [4] = {
     ["id"] = 7787,
@@ -170,11 +170,11 @@ ns.dungeons = {
   [12] = {
     ["id"] = 999998,
     ["name"] = "Return to Karazhan: Lower",
-    ["shortName"] = "RTKL"
+    ["shortName"] = "LOWR"
   },
   [13] = {
     ["id"] = 999999,
     ["name"] = "Return to Karazhan: Upper",
-    ["shortName"] = "RTKU"
+    ["shortName"] = "UPPR"
   }
 }

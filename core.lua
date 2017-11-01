@@ -608,6 +608,7 @@ end
 local function UnpackCharacterData(data1, data2, data3)
 	local results = {}
 	local lo, hi
+	local offset
 
 	--
 	-- Field 1
@@ -623,14 +624,19 @@ local function UnpackCharacterData(data1, data2, data3)
 	--
 	lo, hi = Split64BitNumber(data2)
 
-	results.dpsScore = ReadBits(lo, hi, 0, PAYLOAD_BITS)
-	results.healScore = ReadBits(lo, hi, PAYLOAD_BITS, PAYLOAD_BITS)
+	offset = 0
+	results.dpsScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	results.healScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
 
 	local dungeonIndex = 1
 	results.dungeons = {}
 	for i = 1, 5 do
-		results.dungeons[dungeonIndex]	= ReadBits(lo, hi, PAYLOAD_BITS + dungeonIndex, 1)
+		results.dungeons[dungeonIndex]	= ReadBits(lo, hi, offset, 5)
 		dungeonIndex = dungeonIndex + 1
+		offset = offset + 5
 	end
 
 	--
@@ -638,8 +644,8 @@ local function UnpackCharacterData(data1, data2, data3)
 	--
 	lo, hi = Split64BitNumber(data3)
 
-	local offset = 0
-	while dungeonIndex < #ns.dungeons do
+	offset = 0
+	while dungeonIndex <= #ns.dungeons do
 		results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
 		dungeonIndex = dungeonIndex + 1
 		offset = offset + 5
@@ -657,13 +663,13 @@ local function UnpackCharacterData(data1, data2, data3)
 	results.maxDungeonLevel = maxDungeonLevel
 	results.maxDungeonIndex = maxDungeonIndex
 
-	results.keystoneFivePlus = ReadBits(lo, hi, offset, 1)
+	results.keystoneFivePlus = ReadBits(lo, hi, offset, 1) == 1 and true or false
 	offset = offset + 1
 
-	results.keystoneTenPlus = ReadBits(lo, hi, offset, 1)
+	results.keystoneTenPlus = ReadBits(lo, hi, offset, 1) == 1 and true or false
 	offset = offset + 1
 
-	results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 1)
+	results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 1) == 1 and true or false
 	offset = offset + 1
 
 	return results
@@ -812,8 +818,30 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 
 		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, profile.allScore, 1, 0.85, 0, GetScoreColor(profile.allScore))
 
-		if profile.maxDungeonLevel > 0 then
-			tooltip:AddDoubleLine(L.BEST_RUN, "+" .. profile.maxDungeonLevel .. " " .. profile.maxDungeonName, 1, 1, 1, GetScoreColor(profile.allScore))
+		-- choose the best highlight to show:
+		-- if user has a recorded run at higher level than their highest
+		-- achievement then show that. otherwise, show their highest achievement.
+		local highlightStr = nil
+		if profile.keystoneFifteenPlus then
+			if profile.maxDungeonLevel < 15 then
+				highlightStr = L.KEYSTONE_COMPLETED_15
+			end
+		elseif profile.keystoneTenPlus then
+			if profile.maxDungeonLevel < 10 then
+				highlightStr = L.KEYSTONE_COMPLETED_10
+			end
+		elseif profile.keystoneFivePlus then
+			if profile.maxDungeonLevel < 5 then
+				highlightStr = L.KEYSTONE_COMPLETED_5
+			end
+		end
+
+		if highlightStr == nil and profile.maxDungeonLevel > 0 then
+			highlightStr = "+" .. profile.maxDungeonLevel .. " " .. profile.maxDungeonName
+		end
+
+		if highlightStr ~= nil then
+			tooltip:AddDoubleLine(L.BEST_RUN, highlightStr, 1, 1, 1, GetScoreColor(profile.allScore))
 		end
 
 		-- show tank, healer and dps scores
@@ -846,25 +874,6 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		if addonConfig.showMainsScore ~= false and profile.mainScore > profile.allScore then
 			tooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore))
 		end
-
-		local highlights = {}
-		if profile.keystoneFifteenPlus then
-			highlights[1 + #highlights] = L.KEYSTONE_COMPLETED_15
-		elseif profile.keystoneTenPlus then
-			highlights[1 + #highlights] = L.KEYSTONE_COMPLETED_10
-		elseif profile.keystoneFivePlus then
-			highlights[1 + #highlights] = L.KEYSTONE_COMPLETED_5
-		end
-
-		local highlightStr = ""
-		for i = 1, #highlights do
-			if i > 1 then
-				highlightStr = highlightStr .. ", "
-			end
-			highlightStr = highlightStr .. highlights[i]
-		end
-
-		tooltip:AddLine(highlightStr, 1, 1, 1, false)
 
 		do
 			local t = EGG[profile.region]

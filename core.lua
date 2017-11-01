@@ -837,14 +837,6 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		-- should we show the extended version of the data?
 		local showExtendedTooltip = addon.modKey or addonConfig.alwaysExtendTooltip
 
-		-- TODO: always extend for these frames, as it's not as easy to extend or collapse these...
-		--if 
-		--	(tooltip:GetOwner() and tooltip:GetOwner():GetParent() == WhoFrame) or 
-		--	(tooltip:GetOwner() and tooltip:GetOwner():GetParent() == LFGListSearchPanelScrollFrameScrollChild)
-		--then
-		--	showExtendedTooltip = true
-		--end
-
 		-- add padding line if it looks nicer on the tooltip, also respect users preference
 		if not forceNoPadding then
 			tooltip:AddLine(" ")
@@ -945,24 +937,26 @@ local function UpdateAppendedGameTooltip()
 	if not tooltipArgs[1] or not tooltipArgs[1]:GetOwner() then return end
 	-- unpack the args
 	local tooltip, arg1, forceNoPadding, forceAddName, forceFaction = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5]
-	-- units only need to set the unit again to refresh the tooltip contents
+	-- units only need to SetUnit to re-draw the tooltip properly
 	local _, unit = tooltip:GetUnit()
 	if unit then
 		tooltip:SetUnit(unit)
 		return
 	end
-	-- TODO: at the moment the WhoFrame and LFDList frames are not updated to handle this type of behavior (inline appending data)
-	if
-		(tooltip:GetOwner() and tooltip:GetOwner():GetParent() == WhoFrame) or 
-		(tooltip:GetOwner() and tooltip:GetOwner():GetParent() == LFGListSearchPanelScrollFrameScrollChild)
-	then
-		return
-	end
-	-- TODO: this needs to be improved for the tooltips to properly work in the WhoFrame and LFDList
-	-- other tooltip types needs to remember the position, hide, show and repopulate
+	-- gather tooltip information
 	local o1, o2, o3, o4 = tooltip:GetOwner()
 	local p1, p2, p3, p4, p5 = tooltip:GetPoint(1)
 	local a1, a2, a3 = tooltip:GetAnchorType()
+	-- try to run the OnEnter handler to simulate the user hovering over and triggering the tooltip
+	if o1 then
+		local oe = o1:GetScript("OnEnter")
+		if oe then
+			tooltip:Hide()
+			oe(o1)
+			return
+		end
+	end
+	-- if nothing else worked, attempt to hide, then show the tooltip again in the same place
 	tooltip:Hide()
 	if o1 then
 		o2 = a1
@@ -980,7 +974,7 @@ local function UpdateAppendedGameTooltip()
 	if not o1 and a1 then
 		tooltip:SetAnchorType(a1, a2, a3)
 	end
-	-- we need to run this again to finalize the tooltip
+	-- finalize by appending our tooltip on the bottom
 	AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction)
 end
 

@@ -56,6 +56,21 @@ local REGIONS = {
 	"tw",
 	"cn"
 }
+local LFD_ACTIVITYID_TO_ZONEID = {
+	[462] = 1, -- NL    -- 1|7546
+	[461] = 2, -- HOV   -- 2|7672
+	[460] = 3, -- DHT   -- 3|7673
+	[464] = 4, -- VOTW  -- 4|7787
+	[463] = 5, -- BRH   -- 5|7805
+	[465] = 6, -- MOS   -- 6|7812
+	[467] = 7, -- ARC   -- 7|7855
+	[459] = 8, -- EOA   -- 8|8040
+	[466] = 9, -- COS   -- 9|8079
+	[476] = 10, -- CATH  -- 10|8527
+	[486] = 11, -- SEAT  -- 11|8910
+	[471] = 12, -- LOWER -- 12|999998
+	[473] = 13, -- UPPER -- 13|999999
+}
 
 -- easter
 local EGG = {
@@ -521,6 +536,59 @@ local function Init()
 	addon:RegisterEvent("MODIFIER_STATE_CHANGED")
 end
 
+-- attempts to extract the keystone level from the provided strings
+local function GetKeystoneLevel(raw)
+	if type(raw) ~= "string" then return end
+	local level = raw:match("%+%s*(%d+)")
+	if not level then return end
+	return tonumber(level)
+end
+
+-- detect LFD queue status
+-- returns two objects, first is a table containing queued dungeons and levels, second is a true|false based on if we are hosting ourselves
+-- the first table returns the dungeon directly if we are hosting, since we can only host for one dungeon at a time anyway
+local function GetLFDStatus()
+	local temp = {}
+	-- are we hosting our own keystone group?
+	local id, activityID, _, _, name, comment = C_LFGList.GetActiveEntryInfo()
+	if id then
+		if activityID then
+			local index = LFD_ACTIVITYID_TO_ZONEID[activityID]
+				if index then
+				temp.index = index
+				temp.dungeon = DUNGEONS[index]
+				temp.level = GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0
+				return temp, true
+			end
+		end
+		return nil, true
+	end
+	-- scan what we have applied to, if we aren't hosting our own keystone
+	local applications = C_LFGList.GetApplications()
+	for i = 1, #applications do
+		local resultID = applications[i]
+		local id, activityID, name, comment, _, _, _, _, _, _, _, isDelisted = C_LFGList.GetSearchResultInfo(resultID)
+		if activityID then
+			local _, appStatus, pendingStatus = C_LFGList.GetApplicationInfo(resultID)
+			-- the application needs to be active for us to count as queued up for it
+			if not isDelisted and not pendingStatus and (appStatus == "applied" or appStatus == "invited") then
+				local index = LFD_ACTIVITYID_TO_ZONEID[activityID]
+				if index then
+					temp[#temp + 1] = {
+						index = index,
+						dungeon = DUNGEONS[index],
+						level = GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0
+					}
+				end
+			end
+		end
+	end
+	-- return only if we have valid results
+	if temp[1] then
+		return temp, false
+	end
+end
+_G.XXX = GetLFDStatus -- /dump XXX()
 -- retrieves the url slug for a given realm name
 local function GetRealmSlug(realm)
 	return ns.realmSlugs[realm] or realm
@@ -852,7 +920,7 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		-- choose the best highlight to show:
 		-- if user has a recorded run at higher level than their highest
 		-- achievement then show that. otherwise, show their highest achievement.
-		local highlightStr = nil
+		local highlightStr
 		if profile.keystoneFifteenPlus then
 			if profile.maxDungeonLevel < 15 then
 				highlightStr = L.KEYSTONE_COMPLETED_15
@@ -867,12 +935,49 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			end
 		end
 
-		if highlightStr == nil and profile.maxDungeonLevel > 0 then
+		if not highlightStr and profile.maxDungeonLevel > 0 then
 			highlightStr = "+" .. profile.maxDungeonLevel .. " " .. profile.maxDungeonName
 		end
 
-		if highlightStr ~= nil then
-			tooltip:AddDoubleLine(L.BEST_RUN, highlightStr, 1, 1, 1, GetScoreColor(profile.allScore))
+		-- are we queued for, or hosting a group for a keystone run?
+		local queued, isHosting = GetLFDStatus()
+		local qHighlightStrSameAsBest, qHighlightStr1, qHighlightStr2
+		if queued and isHosting ~= nil then
+			if isHosting then
+				-- we are hosting, so this is the only keystone we are interested in showing
+				qHighlightStrSameAsBest = profile.maxDungeonName == queued.dungeon.shortName
+				qHighlightStr1 = queued.dungeon.shortName
+				qHighlightStr2 = "+" .. profile.dungeons[queued.index]
+			else
+				-- at the moment we pick the first queued dungeon and hope the player only queues for one dungeon at a time, not multiple different keys
+				qHighlightStr1 = queued[1].dungeon.shortName
+				qHighlightStr2 = "+" .. profile.dungeons[queued[1].index]
+				-- try and see if the player is queued to something we got score for on this character
+				for i = 1, #queued do
+					local q = queued[i]
+					local l = profile.dungeons[q.index]
+					if profile.maxDungeonName == q.dungeon.shortName then
+						qHighlightStrSameAsBest = true
+						qHighlightStr1 = q.dungeon.shortName
+						qHighlightStr2 = "+" .. profile.dungeons[q.index]
+						break
+					end
+				end
+			end
+		end
+
+		if highlightStr then
+			-- if highlight is same as what we are queued for (best key) then show it as green color to make it stand out
+			if qHighlightStrSameAsBest then
+				tooltip:AddDoubleLine(L.BEST_RUN, highlightStr, 0, 1, 0, GetScoreColor(profile.allScore))
+			else
+				-- if we have a best dungeon score to show, that is different than the best run, show it before the best run
+				if qHighlightStr1 then
+					tooltip:AddDoubleLine(L.BEST_SS:format(qHighlightStr1), qHighlightStr2, 1, 1, 1, GetScoreColor(profile.allScore))
+				end
+				-- finally show the default best run line
+				tooltip:AddDoubleLine(L.BEST_RUN, highlightStr, 1, 1, 1, GetScoreColor(profile.allScore))
+			end
 		end
 
 		-- show tank, healer and dps scores (only when the tooltip is extended)
@@ -901,11 +1006,15 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		end
 
 		if addonConfig.showPrevAllScore and profile.prevAllScore > profile.allScore then
-			tooltip:AddDoubleLine(L.PREV_SEASON_SCORE, profile.prevAllScore, 0.8, 0.8, 0.8, GetScoreColor(profile.prevAllScore))
+			tooltip:AddDoubleLine(L.PREV_SEASON_SCORE, profile.prevAllScore, 1, 1, 1, GetScoreColor(profile.prevAllScore))
 		end
 
 		if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
 			tooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore))
+		end
+
+		if IS_DB_OUTDATED then
+			tooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS), 1, 1, 1, false)
 		end
 
 		do
@@ -919,10 +1028,6 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 					end
 				end
 			end
-		end
-
-		if IS_DB_OUTDATED then
-			tooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS), 0.9, 0.9, 0.9, false)
 		end
 
 		tooltip:Show()

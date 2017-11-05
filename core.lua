@@ -57,6 +57,7 @@ local REGIONS = {
 	"cn"
 }
 local LFD_ACTIVITYID_TO_ZONEID = {
+	-- Mythic Keystone
 	[462] = 1, -- NL    -- 1|7546
 	[461] = 2, -- HOV   -- 2|7672
 	[460] = 3, -- DHT   -- 3|7673
@@ -70,6 +71,51 @@ local LFD_ACTIVITYID_TO_ZONEID = {
 	[486] = 11, -- SEAT  -- 11|8910
 	[471] = 12, -- LOWER -- 12|999998
 	[473] = 13, -- UPPER -- 13|999999
+	-- TODO: do we need all this, or is adding the "hotfix" line for SEAT enough? on the other hand wrongly categorized queues will with this trick still function to lookup scores for
+	-- Mythic
+	[448] = 1, -- NL
+	[447] = 2, -- HOV
+	[446] = 3, -- DHT
+	[451] = 4, -- VOTW
+	[450] = 5, -- BRH
+	[452] = 6, -- MOS
+	[454] = 7, -- ARC
+	[445] = 8, -- EOA
+	[453] = 9, -- COS
+	[475] = 10, -- CATH
+	[485] = 11, -- SEAT
+	-- [455] = 12, -- LOWER
+	-- [455] = 13, -- UPPER
+	-- Heroic
+	[438] = 1, -- NL
+	[437] = 2, -- HOV
+	[436] = 3, -- DHT
+	[441] = 4, -- VOTW
+	[440] = 5, -- BRH
+	[442] = 6, -- MOS
+	[444] = 7, -- ARC
+	[435] = 8, -- EOA
+	[443] = 9, -- COS
+	[474] = 10, -- CATH
+	[484] = 11, -- SEAT
+	[470] = 12, -- LOWER
+	[472] = 13, -- UPPER
+	-- [439] = 0, -- AOVH
+	-- Normal
+	[428] = 1, -- NL
+	[427] = 2, -- HOV
+	[426] = 3, -- DHT
+	[431] = 4, -- VOTW
+	[430] = 5, -- BRH
+	[432] = 6, -- MOS
+	[434] = 7, -- ARC
+	[425] = 8, -- EOA
+	[433] = 9, -- COS
+	-- [0] = 10, -- CATH
+	-- [0] = 11, -- SEAT
+	-- [0] = 12, -- LOWER
+	-- [0] = 13, -- UPPER
+	-- [429] = 0, -- AOVH
 }
 
 -- easter
@@ -588,7 +634,7 @@ local function GetLFDStatus()
 		return temp, false
 	end
 end
-_G.XXX = GetLFDStatus -- /dump XXX()
+
 -- retrieves the url slug for a given realm name
 local function GetRealmSlug(realm)
 	return ns.realmSlugs[realm] or realm
@@ -946,9 +992,11 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		if focusOnDungeonIndex then
 			local d = DUNGEONS[focusOnDungeonIndex]
 			local l = profile.dungeons[focusOnDungeonIndex]
-			qHighlightStrSameAsBest = profile.maxDungeonName == d.shortName
-			qHighlightStr1 = d.shortName
-			qHighlightStr2 = "+" .. l
+			if l > 0 then
+				qHighlightStrSameAsBest = profile.maxDungeonName == d.shortName
+				qHighlightStr1 = d.shortName
+				qHighlightStr2 = "+" .. l
+			end
 		end
 
 		-- if not, then are we queued for, or hosting a group for a keystone run?

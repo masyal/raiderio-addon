@@ -957,24 +957,27 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			if queued and isHosting ~= nil then
 				if isHosting then
 					-- we are hosting, so this is the only keystone we are interested in showing
-				if profile.dungeons[queued.index] > 0 then
-					qHighlightStrSameAsBest = profile.maxDungeonName == queued.dungeon.shortName
-					qHighlightStr1 = queued.dungeon.shortName
-					qHighlightStr2 = "+" .. profile.dungeons[queued.index]
-				end
+					if profile.dungeons[queued.index] > 0 then
+						qHighlightStrSameAsBest = profile.maxDungeonName == queued.dungeon.shortName
+						qHighlightStr1 = queued.dungeon.shortName
+						qHighlightStr2 = "+" .. profile.dungeons[queued.index]
+					end
 				else
-				if profile.dungeons[queued[q].index] > 0 then
 					-- at the moment we pick the first queued dungeon and hope the player only queues for one dungeon at a time, not multiple different keys
-					qHighlightStr1 = queued[1].dungeon.shortName
-					qHighlightStr2 = "+" .. profile.dungeons[queued[1].index]
+					if profile.dungeons[queued[1].index] > 0 then
+						qHighlightStr1 = queued[1].dungeon.shortName
+						qHighlightStr2 = "+" .. profile.dungeons[queued[1].index]
+					end
 					-- try and see if the player is queued to something we got score for on this character
 					for i = 1, #queued do
 						local q = queued[i]
 						local l = profile.dungeons[q.index]
 						if profile.maxDungeonName == q.dungeon.shortName then
-							qHighlightStrSameAsBest = true
-							qHighlightStr1 = q.dungeon.shortName
-							qHighlightStr2 = "+" .. profile.dungeons[q.index]
+							if l > 0 then
+								qHighlightStrSameAsBest = true
+								qHighlightStr1 = q.dungeon.shortName
+								qHighlightStr2 = "+" .. l
+							end
 							break
 						end
 					end

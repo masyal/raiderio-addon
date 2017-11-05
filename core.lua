@@ -887,7 +887,7 @@ local function GetScoreColor(score)
 end
 
 -- appends score data to a given tooltip
-local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction)
+local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex)
 	local profile = GetScore(arg1, nil, forceFaction)
 
 	-- sanity check that the profile exists
@@ -900,7 +900,7 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		end
 
 		-- assign the current function args for later use
-		tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5] = tooltip, arg1, forceNoPadding, forceAddName, forceFaction
+		tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6] = tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex
 
 		-- should we show the extended version of the data?
 		local showExtendedTooltip = addon.modKey or addonConfig.alwaysExtendTooltip
@@ -939,28 +939,41 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			highlightStr = "+" .. profile.maxDungeonLevel .. " " .. profile.maxDungeonName
 		end
 
-		-- are we queued for, or hosting a group for a keystone run?
-		local queued, isHosting = GetLFDStatus()
+		-- queued/focus highlight variables
 		local qHighlightStrSameAsBest, qHighlightStr1, qHighlightStr2
-		if queued and isHosting ~= nil then
-			if isHosting then
-				-- we are hosting, so this is the only keystone we are interested in showing
-				qHighlightStrSameAsBest = profile.maxDungeonName == queued.dungeon.shortName
-				qHighlightStr1 = queued.dungeon.shortName
-				qHighlightStr2 = "+" .. profile.dungeons[queued.index]
-			else
-				-- at the moment we pick the first queued dungeon and hope the player only queues for one dungeon at a time, not multiple different keys
-				qHighlightStr1 = queued[1].dungeon.shortName
-				qHighlightStr2 = "+" .. profile.dungeons[queued[1].index]
-				-- try and see if the player is queued to something we got score for on this character
-				for i = 1, #queued do
-					local q = queued[i]
-					local l = profile.dungeons[q.index]
-					if profile.maxDungeonName == q.dungeon.shortName then
-						qHighlightStrSameAsBest = true
-						qHighlightStr1 = q.dungeon.shortName
-						qHighlightStr2 = "+" .. profile.dungeons[q.index]
-						break
+
+		-- are we focusing on a specific keystone?
+		if focusOnDungeonIndex then
+			local d = DUNGEONS[focusOnDungeonIndex]
+			local l = profile.dungeons[focusOnDungeonIndex]
+			qHighlightStrSameAsBest = profile.maxDungeonName == d.shortName
+			qHighlightStr1 = d.shortName
+			qHighlightStr2 = "+" .. l
+		end
+
+		-- if not, then are we queued for, or hosting a group for a keystone run?
+		if not focusOnDungeonIndex then
+			local queued, isHosting = GetLFDStatus()
+			if queued and isHosting ~= nil then
+				if isHosting then
+					-- we are hosting, so this is the only keystone we are interested in showing
+					qHighlightStrSameAsBest = profile.maxDungeonName == queued.dungeon.shortName
+					qHighlightStr1 = queued.dungeon.shortName
+					qHighlightStr2 = "+" .. profile.dungeons[queued.index]
+				else
+					-- at the moment we pick the first queued dungeon and hope the player only queues for one dungeon at a time, not multiple different keys
+					qHighlightStr1 = queued[1].dungeon.shortName
+					qHighlightStr2 = "+" .. profile.dungeons[queued[1].index]
+					-- try and see if the player is queued to something we got score for on this character
+					for i = 1, #queued do
+						local q = queued[i]
+						local l = profile.dungeons[q.index]
+						if profile.maxDungeonName == q.dungeon.shortName then
+							qHighlightStrSameAsBest = true
+							qHighlightStr1 = q.dungeon.shortName
+							qHighlightStr2 = "+" .. profile.dungeons[q.index]
+							break
+						end
 					end
 				end
 			end
@@ -1041,7 +1054,7 @@ local function UpdateAppendedGameTooltip()
 	-- sanity check that the args exist
 	if not tooltipArgs[1] or not tooltipArgs[1]:GetOwner() then return end
 	-- unpack the args
-	local tooltip, arg1, forceNoPadding, forceAddName, forceFaction = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5]
+	local tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6]
 	-- units only need to SetUnit to re-draw the tooltip properly
 	local _, unit = tooltip:GetUnit()
 	if unit then
@@ -1080,7 +1093,7 @@ local function UpdateAppendedGameTooltip()
 		tooltip:SetAnchorType(a1, a2, a3)
 	end
 	-- finalize by appending our tooltip on the bottom
-	AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction)
+	AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex)
 end
 
 -- publicly exposed API
@@ -1269,7 +1282,7 @@ do
 				return
 			end
 			local _, unit = self:GetUnit()
-			AppendGameTooltip(self, unit, nil, nil, GetFaction(unit))
+			AppendGameTooltip(self, unit, nil, nil, GetFaction(unit), nil)
 		end)
 		return 1
 	end
@@ -1301,7 +1314,7 @@ do
 						if not hasOwner then
 							GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 						end
-						AppendGameTooltip(GameTooltip, fullName, not hasOwner, true, PLAYER_FACTION)
+						AppendGameTooltip(GameTooltip, fullName, not hasOwner, true, PLAYER_FACTION, nil)
 					end
 				end
 			end
@@ -1312,9 +1325,9 @@ do
 			end
 			-- search results
 			local function SetSearchEntryTooltip(tooltip, resultID, autoAcceptOption)
-				local _, _, _, _, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
+				local _, activityID, _, _, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
 				if leaderName then
-					AppendGameTooltip(tooltip, leaderName, false, true, PLAYER_FACTION)
+					AppendGameTooltip(tooltip, leaderName, false, true, PLAYER_FACTION, LFD_ACTIVITYID_TO_ZONEID[activityID])
 				end
 			end
 			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
@@ -1524,7 +1537,7 @@ do
 					if not hasOwner then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 					end
-					if not AppendGameTooltip(GameTooltip, name, not hasOwner, true, PLAYER_FACTION) and not hasOwner then
+					if not AppendGameTooltip(GameTooltip, name, not hasOwner, true, PLAYER_FACTION, nil) and not hasOwner then
 						GameTooltip:Hide()
 					end
 				end
@@ -1559,7 +1572,7 @@ do
 			end
 			if fullName then
 				GameTooltip:SetOwner(FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
-				if not AppendGameTooltip(GameTooltip, fullName, true, true, faction) then
+				if not AppendGameTooltip(GameTooltip, fullName, true, true, faction, nil) then
 					GameTooltip:Hide()
 				end
 			else
@@ -1592,7 +1605,7 @@ do
 					local fullName = GetGuildRosterInfo(self.guildIndex)
 					if fullName then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
-						if not AppendGameTooltip(GameTooltip, fullName, true, false, PLAYER_FACTION) then
+						if not AppendGameTooltip(GameTooltip, fullName, true, false, PLAYER_FACTION, nil) then
 							GameTooltip:Hide()
 						end
 					end

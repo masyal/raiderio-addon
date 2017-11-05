@@ -957,10 +957,13 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			if queued and isHosting ~= nil then
 				if isHosting then
 					-- we are hosting, so this is the only keystone we are interested in showing
+				if profile.dungeons[queued.index] > 0 then
 					qHighlightStrSameAsBest = profile.maxDungeonName == queued.dungeon.shortName
 					qHighlightStr1 = queued.dungeon.shortName
 					qHighlightStr2 = "+" .. profile.dungeons[queued.index]
+				end
 				else
+				if profile.dungeons[queued[q].index] > 0 then
 					-- at the moment we pick the first queued dungeon and hope the player only queues for one dungeon at a time, not multiple different keys
 					qHighlightStr1 = queued[1].dungeon.shortName
 					qHighlightStr2 = "+" .. profile.dungeons[queued[1].index]
@@ -984,12 +987,12 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			if qHighlightStrSameAsBest then
 				tooltip:AddDoubleLine(L.BEST_RUN, highlightStr, 0, 1, 0, GetScoreColor(profile.allScore))
 			else
-				-- if we have a best dungeon score to show, that is different than the best run, show it before the best run
-				if qHighlightStr1 then
-					tooltip:AddDoubleLine(L.BEST_SS:format(qHighlightStr1), qHighlightStr2, 1, 1, 1, GetScoreColor(profile.allScore))
-				end
-				-- finally show the default best run line
+				-- show the default best run line (it's the best piece of info we have for the player)
 				tooltip:AddDoubleLine(L.BEST_RUN, highlightStr, 1, 1, 1, GetScoreColor(profile.allScore))
+				-- if we have a best dungeon level to show that is different than the best run, then show it to provide context
+				if qHighlightStr1 then
+					tooltip:AddDoubleLine(L.BEST_FOR_DUNGEON, qHighlightStr2 .. " " .. qHighlightStr1, 1, 1, 1, GetScoreColor(profile.allScore))
+				end
 			end
 		end
 

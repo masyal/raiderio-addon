@@ -6,6 +6,9 @@ local dataProviderQueue = {}
 local dataProvider
 
 -- micro-optimization for more speed
+local unpack = unpack
+local sort = table.sort
+local wipe = table.wipe
 local floor = math.floor
 local lshift = bit.lshift
 local rshift = bit.rshift
@@ -14,6 +17,7 @@ local PAYLOAD_BITS = 13
 local PAYLOAD_BITS2 = PAYLOAD_BITS * 2
 local PAYLOAD_BITS3 = PAYLOAD_BITS * 3
 local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
+local LOOKUP_MAX_SIZE = floor(2^18-1)
 
 -- default config
 local addonConfig = {
@@ -30,15 +34,17 @@ local addonConfig = {
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
 	disableScoreColors = false,
+	alwaysExtendTooltip = false,
 }
 
 -- constants
 local L = ns.L
 local SCORE_TIERS = ns.scoreTiers
 local SCORE_TIERS_SIMPLE = ns.scoreTiersSimple
+local DUNGEONS = ns.dungeons
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
-local OUTDATED_SECONDS = 86400 * 2 -- number of seconds before we start warning about outdated data
-local NUM_FIELDS_PER_CHARACTER = 2 -- number of fields in the database lookup table
+local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
+local NUM_FIELDS_PER_CHARACTER = 3 -- number of fields in the database lookup table for each character
 local FACTION = {
 	["Alliance"] = 1,
 	["Horde"] = 2,
@@ -49,6 +55,67 @@ local REGIONS = {
 	"eu",
 	"tw",
 	"cn"
+}
+local LFD_ACTIVITYID_TO_ZONEID = {
+	-- Mythic Keystone
+	[462] = 1, -- NL    -- 1|7546
+	[461] = 2, -- HOV   -- 2|7672
+	[460] = 3, -- DHT   -- 3|7673
+	[464] = 4, -- VOTW  -- 4|7787
+	[463] = 5, -- BRH   -- 5|7805
+	[465] = 6, -- MOS   -- 6|7812
+	[467] = 7, -- ARC   -- 7|7855
+	[459] = 8, -- EOA   -- 8|8040
+	[466] = 9, -- COS   -- 9|8079
+	[476] = 10, -- CATH  -- 10|8527
+	[486] = 11, -- SEAT  -- 11|8910
+	[471] = 12, -- LOWER -- 12|999998
+	[473] = 13, -- UPPER -- 13|999999
+	-- TODO: do we need all this, or is adding the "hotfix" line for SEAT enough? on the other hand wrongly categorized queues will with this trick still function to lookup scores for
+	-- Mythic
+	[448] = 1, -- NL
+	[447] = 2, -- HOV
+	[446] = 3, -- DHT
+	[451] = 4, -- VOTW
+	[450] = 5, -- BRH
+	[452] = 6, -- MOS
+	[454] = 7, -- ARC
+	[445] = 8, -- EOA
+	[453] = 9, -- COS
+	[475] = 10, -- CATH
+	[485] = 11, -- SEAT
+	-- [455] = 12, -- LOWER
+	-- [455] = 13, -- UPPER
+	-- Heroic
+	[438] = 1, -- NL
+	[437] = 2, -- HOV
+	[436] = 3, -- DHT
+	[441] = 4, -- VOTW
+	[440] = 5, -- BRH
+	[442] = 6, -- MOS
+	[444] = 7, -- ARC
+	[435] = 8, -- EOA
+	[443] = 9, -- COS
+	[474] = 10, -- CATH
+	[484] = 11, -- SEAT
+	[470] = 12, -- LOWER
+	[472] = 13, -- UPPER
+	-- [439] = 0, -- AOVH
+	-- Normal
+	[428] = 1, -- NL
+	[427] = 2, -- HOV
+	[426] = 3, -- DHT
+	[431] = 4, -- VOTW
+	[430] = 5, -- BRH
+	[432] = 6, -- MOS
+	[434] = 7, -- ARC
+	[425] = 8, -- EOA
+	[433] = 9, -- COS
+	-- [0] = 10, -- CATH
+	-- [0] = 11, -- SEAT
+	-- [0] = 12, -- LOWER
+	-- [0] = 13, -- UPPER
+	-- [429] = 0, -- AOVH
 }
 
 -- easter
@@ -71,6 +138,14 @@ local PLAYER_FACTION
 local PLAYER_REGION
 local IS_DB_OUTDATED
 local OUTDATED_DAYS
+
+-- tooltip related hooks and storage
+local tooltipArgs = {}
+local tooltipHooks = {}
+
+function tooltipHooks.Wipe()
+	wipe(tooltipArgs)
+end
 
 -- create the addon core frame
 local addon = CreateFrame("Frame")
@@ -392,6 +467,7 @@ local function InitConfig()
 		config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
 		config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 		config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
+		config:CreateOptionToggle(L.ALWAYS_SHOW_EXTENDED_INFO, L.ALWAYS_SHOW_EXTENDED_INFO_DESC, "alwaysExtendTooltip")
 		-- config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 
 		config:CreatePadding()
@@ -501,6 +577,62 @@ local function Init()
 
 	-- purge cache after zoning
 	addon:RegisterEvent("PLAYER_ENTERING_WORLD")
+
+	-- detect toggling of the modifier keys
+	addon:RegisterEvent("MODIFIER_STATE_CHANGED")
+end
+
+-- attempts to extract the keystone level from the provided strings
+local function GetKeystoneLevel(raw)
+	if type(raw) ~= "string" then return end
+	local level = raw:match("%+%s*(%d+)")
+	if not level then return end
+	return tonumber(level)
+end
+
+-- detect LFD queue status
+-- returns two objects, first is a table containing queued dungeons and levels, second is a true|false based on if we are hosting ourselves
+-- the first table returns the dungeon directly if we are hosting, since we can only host for one dungeon at a time anyway
+local function GetLFDStatus()
+	local temp = {}
+	-- are we hosting our own keystone group?
+	local id, activityID, _, _, name, comment = C_LFGList.GetActiveEntryInfo()
+	if id then
+		if activityID then
+			local index = LFD_ACTIVITYID_TO_ZONEID[activityID]
+				if index then
+				temp.index = index
+				temp.dungeon = DUNGEONS[index]
+				temp.level = GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0
+				return temp, true
+			end
+		end
+		return nil, true
+	end
+	-- scan what we have applied to, if we aren't hosting our own keystone
+	local applications = C_LFGList.GetApplications()
+	for i = 1, #applications do
+		local resultID = applications[i]
+		local id, activityID, name, comment, _, _, _, _, _, _, _, isDelisted = C_LFGList.GetSearchResultInfo(resultID)
+		if activityID then
+			local _, appStatus, pendingStatus = C_LFGList.GetApplicationInfo(resultID)
+			-- the application needs to be active for us to count as queued up for it
+			if not isDelisted and not pendingStatus and (appStatus == "applied" or appStatus == "invited") then
+				local index = LFD_ACTIVITYID_TO_ZONEID[activityID]
+				if index then
+					temp[#temp + 1] = {
+						index = index,
+						dungeon = DUNGEONS[index],
+						level = GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0
+					}
+				end
+			end
+		end
+	end
+	-- return only if we have valid results
+	if temp[1] then
+		return temp, false
+	end
 end
 
 -- retrieves the url slug for a given realm name
@@ -575,8 +707,106 @@ local function BinarySearchForName(list, name, startIndex, endIndex)
 	end
 end
 
+local function Split64BitNumber(dword)
+	-- 0x100000000 == (1 << 32). Meaning, shift to get the hi-word.
+	-- WoW lua bit operators seem to only work on the lo-word (?)
+	local lo = band(dword, 0xfffffffff)
+	return lo, (dword - lo) / 0x100000000
+end
+
+-- read given number of bits from the chosen offset with max of 52 bits
+-- assumed that lo contains 32 bits and hi contains 20 bits
+local function ReadBits(lo, hi, offset, bits)
+	if offset < 32 and (offset + bits) > 32 then
+    -- reading across boundary
+    local mask = lshift(1, (offset + bits) - 32) - 1
+    local p1 = rshift(lo, offset)
+    local p2 = lshift(band(hi, mask), 32 - offset)
+    return p1 + p2
+	else
+		local mask = lshift(1, bits) - 1
+		if offset < 32 then
+			-- standard read from loword
+			return band(rshift(lo, offset), mask)
+		else
+			-- standard read from hiword
+			return band(rshift(hi, offset - 32), mask)
+		end
+	end
+end
+
+local function UnpackCharacterData(data1, data2, data3)
+	local results = {}
+	local lo, hi
+	local offset
+
+	--
+	-- Field 1
+	--
+	lo, hi = Split64BitNumber(data1)
+	results.allScore = ReadBits(lo, hi, 0, PAYLOAD_BITS)
+	results.prevAllScore = ReadBits(lo, hi, PAYLOAD_BITS, PAYLOAD_BITS)
+	results.mainScore = ReadBits(lo, hi, PAYLOAD_BITS2, PAYLOAD_BITS)
+	results.tankScore = ReadBits(lo, hi, PAYLOAD_BITS3, PAYLOAD_BITS)
+
+	--
+	-- Field 2
+	--
+	lo, hi = Split64BitNumber(data2)
+
+	offset = 0
+	results.dpsScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	results.healScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	local dungeonIndex = 1
+	results.dungeons = {}
+	for i = 1, 5 do
+		results.dungeons[dungeonIndex]	= ReadBits(lo, hi, offset, 5)
+		dungeonIndex = dungeonIndex + 1
+		offset = offset + 5
+	end
+
+	--
+	-- Field 3
+	--
+	lo, hi = Split64BitNumber(data3)
+
+	offset = 0
+	while dungeonIndex <= #ns.dungeons do
+		results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
+		dungeonIndex = dungeonIndex + 1
+		offset = offset + 5
+	end
+
+	local maxDungeonLevel = 0
+	local maxDungeonIndex = 1
+	for i = 1, #results.dungeons do
+		if results.dungeons[i] > maxDungeonLevel then
+			maxDungeonLevel = results.dungeons[i]
+			maxDungeonIndex = i
+		end
+	end
+
+	results.maxDungeonLevel = maxDungeonLevel
+	results.maxDungeonIndex = maxDungeonIndex
+
+	results.keystoneFivePlus = ReadBits(lo, hi, offset, 1) == 1
+	offset = offset + 1
+
+	results.keystoneTenPlus = ReadBits(lo, hi, offset, 1) == 1
+	offset = offset + 1
+
+	results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 1) == 1
+	offset = offset + 1
+
+	return results
+end
+
 -- caches the profile table and returns one using keys
-local function CacheProviderData(name, realm, index, data1, data2)
+local function CacheProviderData(name, realm, index, data1, data2, data3)
 	local cache = profileCache[index]
 
 	-- prefer to re-use cached profiles
@@ -585,8 +815,7 @@ local function CacheProviderData(name, realm, index, data1, data2)
 	end
 
 	-- unpack the payloads into these tables
-	data1 = {UnpackPayload(data1)}
-	data2 = {UnpackPayload(data2)}
+	payload = UnpackCharacterData(data1, data2, data3)
 
 	-- TODO: can we make this table read-only? raw methods will bypass metatable restrictions we try to enforce
 	-- build this custom table in order to avoid users tainting the provider database
@@ -599,13 +828,20 @@ local function CacheProviderData(name, realm, index, data1, data2)
 		name = name,
 		realm = realm,
 		-- current and last season overall score
-		allScore = data1[1],
-		prevAllScore = data1[2],
-		mainScore = data1[3],
+		allScore = payload.allScore,
+		prevAllScore = payload.prevAllScore,
+		mainScore = payload.mainScore,
 		-- extract the scores per role
-		dpsScore = data2[1],
-		healScore = data2[2],
-		tankScore = data2[3],
+		dpsScore = payload.dpsScore,
+		healScore = payload.healScore,
+		tankScore = payload.tankScore,
+		-- dungeons they have completed
+		dungeons = payload.dungeons,
+		maxDungeonLevel = payload.maxDungeonLevel,
+		maxDungeonName = DUNGEONS[payload.maxDungeonIndex] and DUNGEONS[payload.maxDungeonIndex].shortName or '',
+		keystoneFivePlus = payload.keystoneFivePlus,
+		keystoneTenPlus = payload.keystoneTenPlus,
+		keystoneFifteenPlus = payload.keystoneFifteenPlus,
 	}
 
 	-- append additional role information
@@ -627,7 +863,7 @@ local function GetProviderData(name, realm, faction)
 		a, b = faction, faction
 	end
 	-- iterate through the data
-	local db, lu, r, d, base
+	local db, lu, r, d, base, bucketID, bucket
 	for i = a, b do
 		db, lu = dataProvider["db" .. i], dataProvider["lookup" .. i]
 		-- sanity check that the data exists and is loaded, because it might not be for the requested faction
@@ -638,8 +874,12 @@ local function GetProviderData(name, realm, faction)
 				if d then
 					-- `r[1]` = offset for this realm's characters in lookup table
 					-- `d` = index of found character in realm list. note: this is offset by one because of r[1]
+					-- `bucketID` is the index in the lookup table that contains that characters data
 					base = r[1] + (d - 1) * NUM_FIELDS_PER_CHARACTER - (NUM_FIELDS_PER_CHARACTER - 1)
-					return CacheProviderData(name, realm, i .. "-" .. base, lu[base], lu[base + 1])
+					bucketID = floor(base / LOOKUP_MAX_SIZE)
+					bucket = lu[bucketID + 1]
+					base = base - bucketID * LOOKUP_MAX_SIZE
+					return CacheProviderData(name, realm, i .. "-" .. bucketID .. "-" .. base, bucket[base], bucket[base + 1], bucket[base + 2])
 				end
 			end
 		end
@@ -663,12 +903,12 @@ end
 
 -- returns score color using item colors
 local function GetScoreColor(score)
-	if addonConfig.disableScoreColors == true then
+	if addonConfig.disableScoreColors then
 		return 1, 1, 1
 	end
 	local r, g, b = 0.62, 0.62, 0.62
 	if type(score) == "number" then
-		if addonConfig.showSimpleScoreColors == false then
+		if not addonConfig.showSimpleScoreColors then
 			for i = 1, #SCORE_TIERS do
 				local tier = SCORE_TIERS[i]
 				if score >= tier.score then
@@ -693,9 +933,24 @@ local function GetScoreColor(score)
 end
 
 -- appends score data to a given tooltip
-local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction)
+local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex)
 	local profile = GetScore(arg1, nil, forceFaction)
+
+	-- sanity check that the profile exists
 	if profile then
+
+		-- setup tooltip hook
+		if not tooltipHooks[tooltip] then
+			tooltipHooks[tooltip] = true
+			tooltip:HookScript("OnHide", tooltipHooks.Wipe)
+		end
+
+		-- assign the current function args for later use
+		tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6] = tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex
+
+		-- should we show the extended version of the data?
+		local showExtendedTooltip = addon.modKey or addonConfig.alwaysExtendTooltip
+
 		-- add padding line if it looks nicer on the tooltip, also respect users preference
 		if not forceNoPadding then
 			tooltip:AddLine(" ")
@@ -708,35 +963,125 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 
 		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, profile.allScore, 1, 0.85, 0, GetScoreColor(profile.allScore))
 
-		-- show tank, healer and dps scores
-		local scores = {}
-
-		if profile.tankScore then
-			scores[#scores + 1] = { L.TANK_SCORE, profile.tankScore }
-		end
-
-		if profile.healScore then
-			scores[#scores + 1] = { L.HEALER_SCORE, profile.healScore }
-		end
-
-		if profile.dpsScore then
-			scores[#scores + 1] = { L.DPS_SCORE, profile.dpsScore }
-		end
-
-		table.sort(scores, function (a, b) return a[2] > b[2] end)
-
-		for i = 1, #scores do
-			if scores[i][2] > 0 then
-				tooltip:AddDoubleLine(scores[i][1], scores[i][2], 1, 1, 1, GetScoreColor(scores[i][2]))
+		-- choose the best highlight to show:
+		-- if user has a recorded run at higher level than their highest
+		-- achievement then show that. otherwise, show their highest achievement.
+		local highlightStr
+		if profile.keystoneFifteenPlus then
+			if profile.maxDungeonLevel < 15 then
+				highlightStr = L.KEYSTONE_COMPLETED_15
+			end
+		elseif profile.keystoneTenPlus then
+			if profile.maxDungeonLevel < 10 then
+				highlightStr = L.KEYSTONE_COMPLETED_10
+			end
+		elseif profile.keystoneFivePlus then
+			if profile.maxDungeonLevel < 5 then
+				highlightStr = L.KEYSTONE_COMPLETED_5
 			end
 		end
 
-		if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
-			tooltip:AddDoubleLine(L.PREV_SEASON_SCORE, profile.prevAllScore, 0.8, 0.8, 0.8, GetScoreColor(profile.prevAllScore))
+		if not highlightStr and profile.maxDungeonLevel > 0 then
+			highlightStr = "+" .. profile.maxDungeonLevel .. " " .. profile.maxDungeonName
 		end
 
-		if addonConfig.showMainsScore ~= false and profile.mainScore > profile.allScore then
-			tooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 0.8, 0.8, 0.8, GetScoreColor(profile.mainScore))
+		-- queued/focus highlight variables
+		local qHighlightStrSameAsBest, qHighlightStr1, qHighlightStr2
+
+		-- are we focusing on a specific keystone?
+		if focusOnDungeonIndex then
+			local d = DUNGEONS[focusOnDungeonIndex]
+			local l = profile.dungeons[focusOnDungeonIndex]
+			if l > 0 then
+				qHighlightStrSameAsBest = profile.maxDungeonName == d.shortName
+				qHighlightStr1 = d.shortName
+				qHighlightStr2 = "+" .. l
+			end
+		end
+
+		-- if not, then are we queued for, or hosting a group for a keystone run?
+		if not focusOnDungeonIndex then
+			local queued, isHosting = GetLFDStatus()
+			if queued and isHosting ~= nil then
+				if isHosting then
+					-- we are hosting, so this is the only keystone we are interested in showing
+					if profile.dungeons[queued.index] > 0 then
+						qHighlightStrSameAsBest = profile.maxDungeonName == queued.dungeon.shortName
+						qHighlightStr1 = queued.dungeon.shortName
+						qHighlightStr2 = "+" .. profile.dungeons[queued.index]
+					end
+				else
+					-- at the moment we pick the first queued dungeon and hope the player only queues for one dungeon at a time, not multiple different keys
+					if profile.dungeons[queued[1].index] > 0 then
+						qHighlightStr1 = queued[1].dungeon.shortName
+						qHighlightStr2 = "+" .. profile.dungeons[queued[1].index]
+					end
+					-- try and see if the player is queued to something we got score for on this character
+					for i = 1, #queued do
+						local q = queued[i]
+						local l = profile.dungeons[q.index]
+						if profile.maxDungeonName == q.dungeon.shortName then
+							if l > 0 then
+								qHighlightStrSameAsBest = true
+								qHighlightStr1 = q.dungeon.shortName
+								qHighlightStr2 = "+" .. l
+							end
+							break
+						end
+					end
+				end
+			end
+		end
+
+		if highlightStr then
+			-- if highlight is same as what we are queued for (best key) then show it as green color to make it stand out
+			if qHighlightStrSameAsBest then
+				tooltip:AddDoubleLine(L.BEST_RUN, highlightStr, 0, 1, 0, GetScoreColor(profile.allScore))
+			else
+				-- show the default best run line (it's the best piece of info we have for the player)
+				tooltip:AddDoubleLine(L.BEST_RUN, highlightStr, 1, 1, 1, GetScoreColor(profile.allScore))
+				-- if we have a best dungeon level to show that is different than the best run, then show it to provide context
+				if qHighlightStr1 then
+					tooltip:AddDoubleLine(L.BEST_FOR_DUNGEON, qHighlightStr2 .. " " .. qHighlightStr1, 1, 1, 1, GetScoreColor(profile.allScore))
+				end
+			end
+		end
+
+		-- show tank, healer and dps scores (only when the tooltip is extended)
+		if showExtendedTooltip then
+			local scores = {}
+
+			if profile.tankScore then
+				scores[#scores + 1] = { L.TANK_SCORE, profile.tankScore }
+			end
+
+			if profile.healScore then
+				scores[#scores + 1] = { L.HEALER_SCORE, profile.healScore }
+			end
+
+			if profile.dpsScore then
+				scores[#scores + 1] = { L.DPS_SCORE, profile.dpsScore }
+			end
+
+			sort(scores, function (a, b) return a[2] > b[2] end)
+
+			for i = 1, #scores do
+				if scores[i][2] > 0 then
+					tooltip:AddDoubleLine(scores[i][1], scores[i][2], 1, 1, 1, GetScoreColor(scores[i][2]))
+				end
+			end
+		end
+
+		if addonConfig.showPrevAllScore and profile.prevAllScore > profile.allScore then
+			tooltip:AddDoubleLine(L.PREV_SEASON_SCORE, profile.prevAllScore, 1, 1, 1, GetScoreColor(profile.prevAllScore))
+		end
+
+		if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
+			tooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore))
+		end
+
+		if IS_DB_OUTDATED then
+			tooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS), 1, 1, 1, false)
 		end
 
 		do
@@ -752,14 +1097,57 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			end
 		end
 
-		if IS_DB_OUTDATED then
-			tooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS), 0.9, 0.9, 0.9, false)
-		end
-
 		tooltip:Show()
 
 		return 1
 	end
+end
+
+-- triggers a tooltip update of the current visible tooltip
+local function UpdateAppendedGameTooltip()
+	-- sanity check that the args exist
+	if not tooltipArgs[1] or not tooltipArgs[1]:GetOwner() then return end
+	-- unpack the args
+	local tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6]
+	-- units only need to SetUnit to re-draw the tooltip properly
+	local _, unit = tooltip:GetUnit()
+	if unit then
+		tooltip:SetUnit(unit)
+		return
+	end
+	-- gather tooltip information
+	local o1, o2, o3, o4 = tooltip:GetOwner()
+	local p1, p2, p3, p4, p5 = tooltip:GetPoint(1)
+	local a1, a2, a3 = tooltip:GetAnchorType()
+	-- try to run the OnEnter handler to simulate the user hovering over and triggering the tooltip
+	if o1 then
+		local oe = o1:GetScript("OnEnter")
+		if oe then
+			tooltip:Hide()
+			oe(o1)
+			return
+		end
+	end
+	-- if nothing else worked, attempt to hide, then show the tooltip again in the same place
+	tooltip:Hide()
+	if o1 then
+		o2 = a1
+		if p4 then
+			o3 = p4
+		end
+		if p5 then
+			o4 = p5
+		end
+		tooltip:SetOwner(o1, o2, o3, o4)
+	end
+	if p1 then
+		tooltip:SetPoint(p1, p2, p3, p4, p5)
+	end
+	if not o1 and a1 then
+		tooltip:SetAnchorType(a1, a2, a3)
+	end
+	-- finalize by appending our tooltip on the bottom
+	AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex)
 end
 
 -- publicly exposed API
@@ -811,7 +1199,7 @@ function addon:PLAYER_LOGIN()
 			-- disable the provider addon from loading in the future
 			DisableAddOn(data.name)
 			-- wipe the table to free up memory
-			table.wipe(data)
+			wipe(data)
 		end
 		-- remove reference from the queue
 		dataProviderQueue[i] = nil
@@ -837,7 +1225,22 @@ end
 -- we enter the world (after a loading screen, int/out of instances)
 function addon:PLAYER_ENTERING_WORLD()
 	-- we wipe the cached profiles in between loading screens, this seems like a good way get rid of memory use over time
-	table.wipe(profileCache)
+	wipe(profileCache)
+end
+
+-- modifier key is toggled, update the tooltip if needed
+function addon:MODIFIER_STATE_CHANGED()
+	-- if we always draw the full tooltip then this part of the code shouldn't be running at all
+	if addonConfig.alwaysExtendTooltip then
+		return
+	end
+	-- check if the mod state has changed, and only then run the update function
+	local m = IsModifierKeyDown()
+	local l = addon.modKey
+	addon.modKey = m
+	if m ~= l then
+		UpdateAppendedGameTooltip()
+	end
 end
 
 -- define our UI hooks
@@ -929,11 +1332,11 @@ do
 	-- GameTooltip
 	uiHooks[#uiHooks + 1] = function()
 		GameTooltip:HookScript("OnTooltipSetUnit", function(self)
-			if addonConfig.enableUnitTooltips == false then
+			if not addonConfig.enableUnitTooltips then
 				return
 			end
 			local _, unit = self:GetUnit()
-			AppendGameTooltip(self, unit, nil, nil, GetFaction(unit))
+			AppendGameTooltip(self, unit, nil, nil, GetFaction(unit), nil)
 		end)
 		return 1
 	end
@@ -945,7 +1348,7 @@ do
 			local OnEnter, OnLeave, OnClick
 			-- application queue
 			function OnEnter(self)
-				if addonConfig.enableLFGTooltips == false then
+				if not addonConfig.enableLFGTooltips then
 					return
 				end
 				if self.applicantID and self.Members then
@@ -965,7 +1368,7 @@ do
 						if not hasOwner then
 							GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 						end
-						AppendGameTooltip(GameTooltip, fullName, not hasOwner, true, PLAYER_FACTION)
+						AppendGameTooltip(GameTooltip, fullName, not hasOwner, true, PLAYER_FACTION, nil)
 					end
 				end
 			end
@@ -976,9 +1379,9 @@ do
 			end
 			-- search results
 			local function SetSearchEntryTooltip(tooltip, resultID, autoAcceptOption)
-				local _, _, _, _, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
+				local _, activityID, _, _, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
 				if leaderName then
-					AppendGameTooltip(tooltip, leaderName, false, true, PLAYER_FACTION)
+					AppendGameTooltip(tooltip, leaderName, false, true, PLAYER_FACTION, LFD_ACTIVITYID_TO_ZONEID[activityID])
 				end
 			end
 			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
@@ -1141,7 +1544,7 @@ do
 			end
 			function OnClick(self, button)
 				if button == "RightButton" then
-					if addonConfig.showDropDownCopyURL == false then
+					if not addonConfig.showDropDownCopyURL then
 						return
 					end
 					if self.resultID then
@@ -1178,7 +1581,7 @@ do
 	-- WhoFrame
 	uiHooks[#uiHooks + 1] = function()
 		local function OnEnter(self)
-			if addonConfig.enableWhoTooltips == false then
+			if not addonConfig.enableWhoTooltips then
 				return
 			end
 			if self.whoIndex then
@@ -1188,7 +1591,7 @@ do
 					if not hasOwner then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 					end
-					if not AppendGameTooltip(GameTooltip, name, not hasOwner, true, PLAYER_FACTION) and not hasOwner then
+					if not AppendGameTooltip(GameTooltip, name, not hasOwner, true, PLAYER_FACTION, nil) and not hasOwner then
 						GameTooltip:Hide()
 					end
 				end
@@ -1210,7 +1613,7 @@ do
 	-- FriendsFrame
 	uiHooks[#uiHooks + 1] = function()
 		local function OnEnter(self)
-			if addonConfig.enableFriendsTooltips == false then
+			if not addonConfig.enableFriendsTooltips then
 				return
 			end
 			local fullName, faction
@@ -1223,7 +1626,7 @@ do
 			end
 			if fullName then
 				GameTooltip:SetOwner(FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
-				if not AppendGameTooltip(GameTooltip, fullName, true, true, faction) then
+				if not AppendGameTooltip(GameTooltip, fullName, true, true, faction, nil) then
 					GameTooltip:Hide()
 				end
 			else
@@ -1237,7 +1640,7 @@ do
 		end
 		hooksecurefunc("FriendsFrameTooltip_Show", OnEnter)
 		hooksecurefunc(FriendsTooltip, "Hide", function()
-			if addonConfig.enableFriendsTooltips == false then
+			if not addonConfig.enableFriendsTooltips then
 				return
 			end
 			GameTooltip:Hide()
@@ -1249,14 +1652,14 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.GuildFrame then
 			local function OnEnter(self)
-				if addonConfig.enableGuildTooltips == false then
+				if not addonConfig.enableGuildTooltips then
 					return
 				end
 				if self.guildIndex then
 					local fullName = GetGuildRosterInfo(self.guildIndex)
 					if fullName then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
-						if not AppendGameTooltip(GameTooltip, fullName, true, false, PLAYER_FACTION) then
+						if not AppendGameTooltip(GameTooltip, fullName, true, false, PLAYER_FACTION, nil) then
 							GameTooltip:Hide()
 						end
 					end
@@ -1301,14 +1704,14 @@ do
 			text = ""
 
 			-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
-			if addonConfig.showPrevAllScore ~= false and profile.prevAllScore > profile.allScore then
+			if addonConfig.showPrevAllScore and profile.prevAllScore > profile.allScore then
 				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. " (" .. L.PREV_SEASON_COLON .. profile.prevAllScore .. "). "
 			elseif profile.allScore > 0 then
 				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. ". "
 			end
 
 			-- show the mains season score
-			if addonConfig.showMainsScore ~= false and profile.mainScore > profile.allScore then
+			if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
 				text = text .. "(" .. L.MAINS_SCORE_COLON .. profile.mainScore .. "). "
 			end
 
@@ -1327,7 +1730,7 @@ do
 				scores[#scores + 1] = { L.DPS, profile.dpsScore }
 			end
 
-			table.sort(scores, function (a, b) return a[2] > b[2] end)
+			sort(scores, function (a, b) return a[2] > b[2] end)
 
 			for i = 1, #scores do
 				if scores[i][2] > 0 then
@@ -1341,7 +1744,7 @@ do
 			return text
 		end
 		local function filter(self, event, text, ...)
-			if addonConfig.enableWhoMessages ~= false and event == "CHAT_MSG_SYSTEM" then
+			if addonConfig.enableWhoMessages and event == "CHAT_MSG_SYSTEM" then
 				nameLink, name, level, race, class, guild, zone = text:match(FORMAT_GUILD)
 				if not zone then
 					guild = nil
@@ -1371,12 +1774,12 @@ do
 
 	-- DropDownMenu
 	uiHooks[#uiHooks + 1] = function()
-		if addonConfig.showDropDownCopyURL ~= false then
+		if addonConfig.showDropDownCopyURL then
 			local append = {
 				"PLAYER",
 				"FRIEND",
 				"BN_FRIEND",
-				"GUILD",
+				-- "GUILD",
 			}
 			for i = 1, #append do
 				local key = append[i]
@@ -1391,7 +1794,7 @@ do
 	--[=[
 	uiHooks[#uiHooks + 1] = function()
 		local function OnSetItem(tooltip)
-			if addonConfig.enableKeystoneTooltips == false then
+			if not addonConfig.enableKeystoneTooltips then
 				return
 			end
 			local _, link = tooltip:GetItem()

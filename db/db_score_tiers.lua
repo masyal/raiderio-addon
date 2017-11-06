@@ -109,3 +109,72 @@ ns.scoreTiersSimple = {
     ["quality"] = 1
   }
 }
+
+-- Dungeon listing sorted by id
+ns.dungeons = {
+  [1] = {
+    ["id"] = 7546,
+    ["name"] = "Neltharion's Lair",
+    ["shortName"] = "NL"
+  },
+  [2] = {
+    ["id"] = 7672,
+    ["name"] = "Halls of Valor",
+    ["shortName"] = "HOV"
+  },
+  [3] = {
+    ["id"] = 7673,
+    ["name"] = "Darkheart Thicket",
+    ["shortName"] = "DHT"
+  },
+  [4] = {
+    ["id"] = 7787,
+    ["name"] = "Vault of the Wardens",
+    ["shortName"] = "VOTW"
+  },
+  [5] = {
+    ["id"] = 7805,
+    ["name"] = "Black Rook Hold",
+    ["shortName"] = "BRH"
+  },
+  [6] = {
+    ["id"] = 7812,
+    ["name"] = "Maw of Souls",
+    ["shortName"] = "MOS"
+  },
+  [7] = {
+    ["id"] = 7855,
+    ["name"] = "The Arcway",
+    ["shortName"] = "ARC"
+  },
+  [8] = {
+    ["id"] = 8040,
+    ["name"] = "Eye of Azshara",
+    ["shortName"] = "EOA"
+  },
+  [9] = {
+    ["id"] = 8079,
+    ["name"] = "Court of Stars",
+    ["shortName"] = "COS"
+  },
+  [10] = {
+    ["id"] = 8527,
+    ["name"] = "Cathedral of Eternal Night",
+    ["shortName"] = "COEN"
+  },
+  [11] = {
+    ["id"] = 8910,
+    ["name"] = "Seat of the Triumvirate",
+    ["shortName"] = "SEAT"
+  },
+  [12] = {
+    ["id"] = 999998,
+    ["name"] = "Return to Karazhan: Lower",
+    ["shortName"] = "LOWR"
+  },
+  [13] = {
+    ["id"] = 999999,
+    ["name"] = "Return to Karazhan: Upper",
+    ["shortName"] = "UPPR"
+  }
+}

@@ -29,7 +29,6 @@ local addonConfig = {
 	enableWhoMessages = true,
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
-	showPrevAllScore = true,
 	showMainsScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
@@ -127,7 +126,6 @@ local EGG = {
 	},
 	["us"] = {
 		["Skullcrusher"] = {
-			["Aspyrael"] = "Raider.IO Creator",
 			["Aspyrform"] = "Raider.IO Creator",
 			["Ulsoga"] = "Immeasurable Greatness",
 		},
@@ -464,7 +462,6 @@ local function InitConfig()
 
 		config:CreatePadding()
 		config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)
-		config:CreateOptionToggle(L.SHOW_PREV_SEASON_SCORE, L.SHOW_PREV_SEASON_SCORE_DESC, "showPrevAllScore")
 		config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
 		config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 		config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
@@ -746,7 +743,7 @@ local function UnpackCharacterData(data1, data2, data3)
 	--
 	lo, hi = Split64BitNumber(data1)
 	results.allScore = ReadBits(lo, hi, 0, PAYLOAD_BITS)
-	results.prevAllScore = ReadBits(lo, hi, PAYLOAD_BITS, PAYLOAD_BITS)
+	results.isPrevAllScore = not (ReadBits(lo, hi, PAYLOAD_BITS, PAYLOAD_BITS) == 0)
 	results.mainScore = ReadBits(lo, hi, PAYLOAD_BITS2, PAYLOAD_BITS)
 	results.tankScore = ReadBits(lo, hi, PAYLOAD_BITS3, PAYLOAD_BITS)
 
@@ -830,7 +827,8 @@ local function CacheProviderData(name, realm, index, data1, data2, data3)
 		realm = realm,
 		-- current and last season overall score
 		allScore = payload.allScore,
-		prevAllScore = payload.prevAllScore,
+		prevAllScore = payload.allScore,		-- DEPRECATED, will be removed in the future
+		isPrevAllScore = payload.isPrevAllScore,
 		mainScore = payload.mainScore,
 		-- extract the scores per role
 		dpsScore = payload.dpsScore,
@@ -933,6 +931,14 @@ local function GetScoreColor(score)
 	return r, g, b
 end
 
+-- returns score formatted for current or prev season
+local function GetFormattedScore(score, isPrevious)
+	if isPrevious then
+		return score .. " " .. L.PREV_SEASON_SUFFIX
+	end
+	return score
+end
+
 -- appends score data to a given tooltip
 local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex)
 	local profile = GetScore(arg1, nil, forceFaction)
@@ -962,7 +968,7 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			tooltip:AddLine(profile.name .. " (" .. profile.realm .. ")", 1, 1, 1, false)
 		end
 
-		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, profile.allScore, 1, 0.85, 0, GetScoreColor(profile.allScore))
+		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, GetFormattedScore(profile.allScore, profile.isPrevAllScore), 1, 0.85, 0, GetScoreColor(profile.allScore))
 
 		-- choose the best highlight to show:
 		-- if user has a recorded run at higher level than their highest
@@ -1071,10 +1077,6 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 					tooltip:AddDoubleLine(scores[i][1], scores[i][2], 1, 1, 1, GetScoreColor(scores[i][2]))
 				end
 			end
-		end
-
-		if addonConfig.showPrevAllScore and profile.prevAllScore > profile.allScore then
-			tooltip:AddDoubleLine(L.PREV_SEASON_SCORE, profile.prevAllScore, 1, 1, 1, GetScoreColor(profile.prevAllScore))
 		end
 
 		if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
@@ -1704,11 +1706,8 @@ do
 		local function score(profile)
 			text = ""
 
-			-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
-			if addonConfig.showPrevAllScore and profile.prevAllScore > profile.allScore then
-				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. " (" .. L.PREV_SEASON_COLON .. profile.prevAllScore .. "). "
-			elseif profile.allScore > 0 then
-				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. ". "
+			if profile.allScore > 0 then
+				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. GetFormattedScore(profile.allScore, profile.isPrevAllScore) .. ". "
 			end
 
 			-- show the mains season score

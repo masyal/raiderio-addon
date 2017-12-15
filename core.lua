@@ -121,8 +121,8 @@ local LFD_ACTIVITYID_TO_ZONEID = {
 -- easter
 local EGG = {
 	["eu"] = {
-		["Darksorrow"] = {
-			["Cyan"] = "Raider.IO AddOn Author",
+		["Ravencrest"] = {
+			["Voidzone"] = "Raider.IO AddOn Author",
 		},
 	},
 	["us"] = {

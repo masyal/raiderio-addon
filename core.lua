@@ -780,7 +780,7 @@ local function UnpackCharacterData(data1, data2, data3)
 	end
 
 	local maxDungeonLevel = 0
-	local maxDungeonIndex = 1
+	local maxDungeonIndex = -1	-- we may not have a max dungeon if user was brought in because of +10/+15 achievement
 	for i = 1, #results.dungeons do
 		if results.dungeons[i] > maxDungeonLevel then
 			maxDungeonLevel = results.dungeons[i]
@@ -902,7 +902,7 @@ end
 
 -- returns score color using item colors
 local function GetScoreColor(score)
-	if addonConfig.disableScoreColors then
+	if score == 0 or addonConfig.disableScoreColors then
 		return 1, 1, 1
 	end
 	local r, g, b = 0.62, 0.62, 0.62

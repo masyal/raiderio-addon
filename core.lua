@@ -14,8 +14,6 @@ local lshift = bit.lshift
 local rshift = bit.rshift
 local band = bit.band
 local PAYLOAD_BITS = 13
-local PAYLOAD_BITS2 = PAYLOAD_BITS * 2
-local PAYLOAD_BITS3 = PAYLOAD_BITS * 3
 local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
 local LOOKUP_MAX_SIZE = floor(2^18-1)
 
@@ -742,10 +740,22 @@ local function UnpackCharacterData(data1, data2, data3)
 	-- Field 1
 	--
 	lo, hi = Split64BitNumber(data1)
-	results.allScore = ReadBits(lo, hi, 0, PAYLOAD_BITS)
-	results.isPrevAllScore = not (ReadBits(lo, hi, PAYLOAD_BITS, PAYLOAD_BITS) == 0)
-	results.mainScore = ReadBits(lo, hi, PAYLOAD_BITS2, PAYLOAD_BITS)
-	results.tankScore = ReadBits(lo, hi, PAYLOAD_BITS3, PAYLOAD_BITS)
+	offset = 0
+
+	results.allScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	results.healScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	results.tankScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	results.mainScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	results.isPrevAllScore = not (ReadBits(lo, hi, offset, 1) == 0)
+	offset = offset + 1
 
 	--
 	-- Field 2
@@ -756,13 +766,10 @@ local function UnpackCharacterData(data1, data2, data3)
 	results.dpsScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
 	offset = offset + PAYLOAD_BITS
 
-	results.healScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
-	offset = offset + PAYLOAD_BITS
-
 	local dungeonIndex = 1
 	results.dungeons = {}
-	for i = 1, 5 do
-		results.dungeons[dungeonIndex]	= ReadBits(lo, hi, offset, 5)
+	for i = 1, 8 do
+		results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
 		dungeonIndex = dungeonIndex + 1
 		offset = offset + 5
 	end
@@ -790,9 +797,6 @@ local function UnpackCharacterData(data1, data2, data3)
 
 	results.maxDungeonLevel = maxDungeonLevel
 	results.maxDungeonIndex = maxDungeonIndex
-
-	results.keystoneFivePlus = ReadBits(lo, hi, offset, 1) == 1
-	offset = offset + 1
 
 	results.keystoneTenPlus = ReadBits(lo, hi, offset, 1) == 1
 	offset = offset + 1

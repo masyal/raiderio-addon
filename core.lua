@@ -842,7 +842,6 @@ local function CacheProviderData(name, realm, index, data1, data2, data3)
 		dungeons = payload.dungeons,
 		maxDungeonLevel = payload.maxDungeonLevel,
 		maxDungeonName = DUNGEONS[payload.maxDungeonIndex] and DUNGEONS[payload.maxDungeonIndex].shortName or '',
-		keystoneFivePlus = payload.keystoneFivePlus,
 		keystoneTenPlus = payload.keystoneTenPlus,
 		keystoneFifteenPlus = payload.keystoneFifteenPlus,
 	}
@@ -989,10 +988,6 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		elseif profile.keystoneTenPlus then
 			if profile.maxDungeonLevel < 10 then
 				highlightStr = L.KEYSTONE_COMPLETED_10
-			end
-		elseif profile.keystoneFivePlus then
-			if profile.maxDungeonLevel < 5 then
-				highlightStr = L.KEYSTONE_COMPLETED_5
 			end
 		end
 

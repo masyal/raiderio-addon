@@ -14,8 +14,6 @@ local lshift = bit.lshift
 local rshift = bit.rshift
 local band = bit.band
 local PAYLOAD_BITS = 13
-local PAYLOAD_BITS2 = PAYLOAD_BITS * 2
-local PAYLOAD_BITS3 = PAYLOAD_BITS * 3
 local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
 local LOOKUP_MAX_SIZE = floor(2^18-1)
 
@@ -29,7 +27,6 @@ local addonConfig = {
 	enableWhoMessages = true,
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
-	showPrevAllScore = true,
 	showMainsScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
@@ -127,7 +124,6 @@ local EGG = {
 	},
 	["us"] = {
 		["Skullcrusher"] = {
-			["Aspyrael"] = "Raider.IO Creator",
 			["Aspyrform"] = "Raider.IO Creator",
 			["Ulsoga"] = "Immeasurable Greatness",
 		},
@@ -464,7 +460,6 @@ local function InitConfig()
 
 		config:CreatePadding()
 		config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)
-		config:CreateOptionToggle(L.SHOW_PREV_SEASON_SCORE, L.SHOW_PREV_SEASON_SCORE_DESC, "showPrevAllScore")
 		config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
 		config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 		config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
@@ -745,10 +740,22 @@ local function UnpackCharacterData(data1, data2, data3)
 	-- Field 1
 	--
 	lo, hi = Split64BitNumber(data1)
-	results.allScore = ReadBits(lo, hi, 0, PAYLOAD_BITS)
-	results.prevAllScore = ReadBits(lo, hi, PAYLOAD_BITS, PAYLOAD_BITS)
-	results.mainScore = ReadBits(lo, hi, PAYLOAD_BITS2, PAYLOAD_BITS)
-	results.tankScore = ReadBits(lo, hi, PAYLOAD_BITS3, PAYLOAD_BITS)
+	offset = 0
+
+	results.allScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	results.healScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	results.tankScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	results.mainScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+	offset = offset + PAYLOAD_BITS
+
+	results.isPrevAllScore = not (ReadBits(lo, hi, offset, 1) == 0)
+	offset = offset + 1
 
 	--
 	-- Field 2
@@ -759,13 +766,10 @@ local function UnpackCharacterData(data1, data2, data3)
 	results.dpsScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
 	offset = offset + PAYLOAD_BITS
 
-	results.healScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
-	offset = offset + PAYLOAD_BITS
-
 	local dungeonIndex = 1
 	results.dungeons = {}
-	for i = 1, 5 do
-		results.dungeons[dungeonIndex]	= ReadBits(lo, hi, offset, 5)
+	for i = 1, 8 do
+		results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
 		dungeonIndex = dungeonIndex + 1
 		offset = offset + 5
 	end
@@ -783,7 +787,7 @@ local function UnpackCharacterData(data1, data2, data3)
 	end
 
 	local maxDungeonLevel = 0
-	local maxDungeonIndex = 1
+	local maxDungeonIndex = -1	-- we may not have a max dungeon if user was brought in because of +10/+15 achievement
 	for i = 1, #results.dungeons do
 		if results.dungeons[i] > maxDungeonLevel then
 			maxDungeonLevel = results.dungeons[i]
@@ -793,9 +797,6 @@ local function UnpackCharacterData(data1, data2, data3)
 
 	results.maxDungeonLevel = maxDungeonLevel
 	results.maxDungeonIndex = maxDungeonIndex
-
-	results.keystoneFivePlus = ReadBits(lo, hi, offset, 1) == 1
-	offset = offset + 1
 
 	results.keystoneTenPlus = ReadBits(lo, hi, offset, 1) == 1
 	offset = offset + 1
@@ -830,7 +831,8 @@ local function CacheProviderData(name, realm, index, data1, data2, data3)
 		realm = realm,
 		-- current and last season overall score
 		allScore = payload.allScore,
-		prevAllScore = payload.prevAllScore,
+		prevAllScore = payload.allScore,		-- DEPRECATED, will be removed in the future
+		isPrevAllScore = payload.isPrevAllScore,
 		mainScore = payload.mainScore,
 		-- extract the scores per role
 		dpsScore = payload.dpsScore,
@@ -840,7 +842,6 @@ local function CacheProviderData(name, realm, index, data1, data2, data3)
 		dungeons = payload.dungeons,
 		maxDungeonLevel = payload.maxDungeonLevel,
 		maxDungeonName = DUNGEONS[payload.maxDungeonIndex] and DUNGEONS[payload.maxDungeonIndex].shortName or '',
-		keystoneFivePlus = payload.keystoneFivePlus,
 		keystoneTenPlus = payload.keystoneTenPlus,
 		keystoneFifteenPlus = payload.keystoneFifteenPlus,
 	}
@@ -904,7 +905,7 @@ end
 
 -- returns score color using item colors
 local function GetScoreColor(score)
-	if addonConfig.disableScoreColors then
+	if score == 0 or addonConfig.disableScoreColors then
 		return 1, 1, 1
 	end
 	local r, g, b = 0.62, 0.62, 0.62
@@ -931,6 +932,14 @@ local function GetScoreColor(score)
 		end
 	end
 	return r, g, b
+end
+
+-- returns score formatted for current or prev season
+local function GetFormattedScore(score, isPrevious)
+	if isPrevious then
+		return score .. " " .. L.PREV_SEASON_SUFFIX
+	end
+	return score
 end
 
 -- appends score data to a given tooltip
@@ -962,7 +971,11 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 			tooltip:AddLine(profile.name .. " (" .. profile.realm .. ")", 1, 1, 1, false)
 		end
 
-		tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, profile.allScore, 1, 0.85, 0, GetScoreColor(profile.allScore))
+		if profile.allScore > 0 then
+			tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, GetFormattedScore(profile.allScore, profile.isPrevAllScore), 1, 0.85, 0, GetScoreColor(profile.allScore))
+		else
+			tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, L.UNKNOWN_SCORE, 1, 0.85, 0, 1, 1, 1)
+		end
 
 		-- choose the best highlight to show:
 		-- if user has a recorded run at higher level than their highest
@@ -975,10 +988,6 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		elseif profile.keystoneTenPlus then
 			if profile.maxDungeonLevel < 10 then
 				highlightStr = L.KEYSTONE_COMPLETED_10
-			end
-		elseif profile.keystoneFivePlus then
-			if profile.maxDungeonLevel < 5 then
-				highlightStr = L.KEYSTONE_COMPLETED_5
 			end
 		end
 
@@ -1071,10 +1080,6 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 					tooltip:AddDoubleLine(scores[i][1], scores[i][2], 1, 1, 1, GetScoreColor(scores[i][2]))
 				end
 			end
-		end
-
-		if addonConfig.showPrevAllScore and profile.prevAllScore > profile.allScore then
-			tooltip:AddDoubleLine(L.PREV_SEASON_SCORE, profile.prevAllScore, 1, 1, 1, GetScoreColor(profile.prevAllScore))
 		end
 
 		if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
@@ -1704,11 +1709,8 @@ do
 		local function score(profile)
 			text = ""
 
-			-- show the last season score if our current season score is too low relative to our last score, otherwise just show the real score
-			if addonConfig.showPrevAllScore and profile.prevAllScore > profile.allScore then
-				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. " (" .. L.PREV_SEASON_COLON .. profile.prevAllScore .. "). "
-			elseif profile.allScore > 0 then
-				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. profile.allScore .. ". "
+			if profile.allScore > 0 then
+				text = text .. (L.RAIDERIO_MP_SCORE_COLON):gsub("%.", "|cffFFFFFF|r.") .. GetFormattedScore(profile.allScore, profile.isPrevAllScore) .. ". "
 			end
 
 			-- show the mains season score

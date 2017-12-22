@@ -12,13 +12,15 @@ Additionally, you can right-click players from the standard target unit frame to
 
 If you have run into any problems, check out our FAQ at https://raider.io/faq, or join us on Discord at: https://discord.gg/raider -- we always have people around willing to help.
 
+[![Become a Patron](https://assets.raider.io/images/patreon/become_a_patron_button.png "Become a Patron")](https://www.patreon.com/RaiderIO)
+
 ## Getting Started
 
 The easiest way to get started is to download the Twitch Desktop App at: https://app.twitch.tv/download, and then search for the "Raider.IO Mythic Plus" addon and install it.
 
 Once installed you can load into the game and you will start seeing Scores and Best Runs on players around you. This AddOn works by storing a snapshot of character data from Raider.IO and then using that to populate information on qualified players. To qualify for inclusion in the daily snapshot, players must meet this criteria:
 
-- Have earned at least 500 points in any of the currently relevant seasons (7.3.2, 7.3, 7.2.5, 7.2)
+- Have earned at least 500 points in any of the currently relevant seasons (7.3.2, 7.3, 7.2.5, 7.2), or have completed a 10+ or 15+ dungeon in-time.
 - Have logged in to the game within the past 30 days
 
 **Remember**: We update the addon with the latest scores and top runs **every day**. Update regularly to ensure you are seeing the freshest information. _Using the Twitch Client you can enable Automatic Updates for the addon to make this process a breeze_.

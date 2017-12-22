@@ -798,11 +798,11 @@ local function UnpackCharacterData(data1, data2, data3)
 	results.maxDungeonLevel = maxDungeonLevel
 	results.maxDungeonIndex = maxDungeonIndex
 
-	results.keystoneTenPlus = ReadBits(lo, hi, offset, 1) == 1
-	offset = offset + 1
+	results.keystoneTenPlus = ReadBits(lo, hi, offset, 8)
+	offset = offset + 8
 
-	results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 1) == 1
-	offset = offset + 1
+	results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 8)
+	offset = offset + 8
 
 	return results
 end
@@ -942,6 +942,15 @@ local function GetFormattedScore(score, isPrevious)
 	return score
 end
 
+-- we only use 8 bits for a run, so decide a cap that we won't show beyond
+local function GetFormattedRunCount(count)
+	if count > 250 then
+		return '250+'
+	else
+		return count
+	end
+end
+
 -- appends score data to a given tooltip
 local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex)
 	local profile = GetScore(arg1, nil, forceFaction)
@@ -981,11 +990,11 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		-- if user has a recorded run at higher level than their highest
 		-- achievement then show that. otherwise, show their highest achievement.
 		local highlightStr
-		if profile.keystoneFifteenPlus then
+		if profile.keystoneFifteenPlus > 0 then
 			if profile.maxDungeonLevel < 15 then
 				highlightStr = L.KEYSTONE_COMPLETED_15
 			end
-		elseif profile.keystoneTenPlus then
+		elseif profile.keystoneTenPlus > 0 then
 			if profile.maxDungeonLevel < 10 then
 				highlightStr = L.KEYSTONE_COMPLETED_10
 			end
@@ -1055,6 +1064,14 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 					tooltip:AddDoubleLine(L.BEST_FOR_DUNGEON, qHighlightStr2 .. " " .. qHighlightStr1, 1, 1, 1, GetScoreColor(profile.allScore))
 				end
 			end
+		end
+
+		if profile.keystoneFifteenPlus > 0 then
+			tooltip:AddDoubleLine(L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus), 1, 1, 1, GetScoreColor(profile.allScore))
+		end
+
+		if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or showExtendedTooltip) then
+			tooltip:AddDoubleLine(L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus), 1, 1, 1, GetScoreColor(profile.allScore))
 		end
 
 		-- show tank, healer and dps scores (only when the tooltip is extended)

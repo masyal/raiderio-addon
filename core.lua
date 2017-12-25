@@ -38,7 +38,13 @@ local addonConfig = {
 local L = ns.L
 local SCORE_TIERS = ns.scoreTiers
 local SCORE_TIERS_SIMPLE = ns.scoreTiersSimple
+
 local DUNGEONS = ns.dungeons
+for i = 1, #DUNGEONS, 1 do
+	local dgn = DUNGEONS[i]
+	dgn.shortName = L["DUNGEON_SHORT_NAME_" .. dgn.shortName] or dgn.shortName
+end
+
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
 local NUM_FIELDS_PER_CHARACTER = 3 -- number of fields in the database lookup table for each character
@@ -126,6 +132,7 @@ local EGG = {
 		["Skullcrusher"] = {
 			["Aspyrform"] = "Raider.IO Creator",
 			["Ulsoga"] = "Immeasurable Greatness",
+			["Pepsiblue"] = "#millenialthings",
 		},
 	},
 }

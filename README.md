@@ -20,12 +20,40 @@ The easiest way to get started is to download the Twitch Desktop App at: https:/
 
 Once installed you can load into the game and you will start seeing Scores and Best Runs on players around you. This AddOn works by storing a snapshot of character data from Raider.IO and then using that to populate information on qualified players. To qualify for inclusion in the daily snapshot, players must meet this criteria:
 
-- Have earned at least 500 points in any of the currently relevant seasons (7.3.2, 7.3, 7.2.5, 7.2), or have completed a 10+ or 15+ dungeon in-time.
+- Have earned at least 500 points in any of the currently relevant seasons (7.3.2, 7.3, 7.2.5, 7.2), or have completed a 10+ or 15+ dungeon in-time. _[Honored and higher patrons](https://www.patreon.com/RaiderIO) do not have a minimum score requirement in order to be shown in the addon._
 - Have logged in to the game within the past 30 days
+
 
 **Remember**: We update the addon with the latest scores and top runs **every day**. Update regularly to ensure you are seeing the freshest information. _Using the Twitch Client you can enable Automatic Updates for the addon to make this process a breeze_.
 
-## Detailed Usage
+## Patreon Rewards
+
+Interested in supporting development of Raider.IO and getting some rewards while you're at it? We offer multiple levels of rewards.
+
+__Friendly:__
+
+- Browse Raider.IO AD-FREE!
+- Friendly Patron rank in Discord
+
+__Honored:__
+
+- Exclusive profile header background options
+- Minimum score requirement removed from addon for your characters
+- Elevated queue priority
+- Honored Patron rank in Discord
+- Plus all rewards from Friendly tier
+
+__Revered:__
+
+- Participation in votes for upcoming Raider.IO features 
+- Custom Vanity URL for your guild or character
+- Queue priority elevated above Honored level
+- Revered Patron rank in Discord
+- Plus all rewards from Friendly and Honored tiers
+
+[Become a Patron Now!](https://www.patreon.com/RaiderIO)
+
+## Detailed Addon Usage
 
 Our intent with this AddOn is to provide an easy way for people to get some information at a glance when forming groups. There is no substitute for talking with your fellow players, so be a pal and listen if an applicant whispers you. These are the fields we show, and when we show them:
 

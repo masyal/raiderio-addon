@@ -132,7 +132,7 @@ local EGG = {
 		["Skullcrusher"] = {
 			["Aspyrform"] = "Raider.IO Creator",
 			["Ulsoga"] = "Immeasurable Greatness",
-			["Pepsiblue"] = "#millenialthings",
+			["Pepsiblue"] = "#millennialthings",
 		},
 	},
 }

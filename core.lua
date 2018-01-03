@@ -581,7 +581,7 @@ local function Init()
 	-- purge cache after zoning
 	addon:RegisterEvent("PLAYER_ENTERING_WORLD")
 
-	-- detect toggling of the modifier keys
+	-- detect toggling of the modifier keys (additional events to try self-correct if we locked the mod key by using ALT-TAB)
 	addon:RegisterEvent("MODIFIER_STATE_CHANGED")
 end
 
@@ -965,6 +965,9 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 	-- sanity check that the profile exists
 	if profile then
 
+		-- HOTFIX: ALT-TAB stickyness
+		addon:MODIFIER_STATE_CHANGED(true)
+
 		-- setup tooltip hook
 		if not tooltipHooks[tooltip] then
 			tooltipHooks[tooltip] = true
@@ -1259,7 +1262,7 @@ function addon:PLAYER_ENTERING_WORLD()
 end
 
 -- modifier key is toggled, update the tooltip if needed
-function addon:MODIFIER_STATE_CHANGED()
+function addon:MODIFIER_STATE_CHANGED(skipUpdatingTooltip)
 	-- if we always draw the full tooltip then this part of the code shouldn't be running at all
 	if addonConfig.alwaysExtendTooltip then
 		return
@@ -1268,7 +1271,7 @@ function addon:MODIFIER_STATE_CHANGED()
 	local m = IsModifierKeyDown()
 	local l = addon.modKey
 	addon.modKey = m
-	if m ~= l then
+	if m ~= l and skipUpdatingTooltip ~= true then
 		UpdateAppendedGameTooltip()
 	end
 end

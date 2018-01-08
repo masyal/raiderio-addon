@@ -453,7 +453,7 @@ local function InitConfig()
 		configFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 
 		-- add widgets
-		local header = config:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS)
+		local header = config:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(GetAddOnMetadata(addonName, "Version")))
 		header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
 
 		config:CreatePadding()

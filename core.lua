@@ -402,7 +402,7 @@ local function InitConfig()
 
 	-- customize the look and feel
 	do
-		configFrame:SetSize(320, 496)
+		configFrame:SetSize(360, 496)
 		configFrame:SetPoint("CENTER")
 		configFrame:SetFrameStrata("DIALOG")
 		configFrame:SetFrameLevel(255)
@@ -480,10 +480,10 @@ local function InitConfig()
 
 		config:CreatePadding()
 		config:CreateHeadline(L.MYTHIC_PLUS_DB_MODULES)
-		local module1 = config:CreateModuleToggle("Americas", "RaiderIO_DB_US_A", "RaiderIO_DB_US_H")
-		config:CreateModuleToggle("Europe", "RaiderIO_DB_EU_A", "RaiderIO_DB_EU_H")
-		config:CreateModuleToggle("Korea", "RaiderIO_DB_KR_A", "RaiderIO_DB_KR_H")
-		config:CreateModuleToggle("Taiwan", "RaiderIO_DB_TW_A", "RaiderIO_DB_TW_H")
+		local module1 = config:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A", "RaiderIO_DB_US_H")
+		config:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A", "RaiderIO_DB_EU_H")
+		config:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A", "RaiderIO_DB_KR_H")
+		config:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A", "RaiderIO_DB_TW_H")
 
 		-- add save button and cancel buttons
 		local buttons = config:CreateWidget("Frame", 4)

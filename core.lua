@@ -121,6 +121,36 @@ local LFD_ACTIVITYID_TO_ZONEID = {
 	-- [0] = 13, -- UPPER
 	-- [429] = 0, -- AOVH
 }
+local DUNGEON_INSTANCEMAPID_TO_ZONEID = {
+	[1458] = 1, -- NL
+	[1477] = 2, -- HOV
+	[1466] = 3, -- DHT
+	[1493] = 4, -- VOTW
+	[1501] = 5, -- BRH
+	[1492] = 6, -- MOS
+	[1516] = 7, -- ARC
+	[1456] = 8, -- EOA
+	[1571] = 9, -- COS
+	[1677] = 10, -- CATH
+	[1753] = 11, -- SEAT
+	[1651] = 12, -- LOWER
+	-- [1651] = 13, -- UPPER -- has separate logic to handle this (we just pick best score out of these two)
+}
+local KEYSTONE_INST_TO_ZONEID = {
+	["206"] = 1, -- NL
+	["200"] = 2, -- HOV
+	["198"] = 3, -- DHT
+	["207"] = 4, -- VOTW
+	["199"] = 5, -- BRH
+	["208"] = 6, -- MOS
+	["209"] = 7, -- ARC
+	["197"] = 8, -- EOA
+	["210"] = 9, -- COS
+	["233"] = 10, -- CATH
+	["239"] = 11, -- SEAT
+	["227"] = 12, -- LOWER
+	["234"] = 13, -- UPPER
+}
 local KEYSTONE_LEVEL_TO_AVG_SCORE = {
 	["2"] = 20,
 	["3"] = 30,
@@ -681,6 +711,20 @@ local function GetLFDStatus()
 	end
 end
 
+-- detect what instance we are in
+local function GetInstanceStatus()
+	local _, instanceType, _, _, _, _, _, instanceMapID = GetInstanceInfo()
+	if instanceType ~= "party" then return end
+	local index = DUNGEON_INSTANCEMAPID_TO_ZONEID[instanceMapID]
+	if not index then return end
+	local temp = {
+		index = index,
+		dungeon = DUNGEONS[index],
+		level = 0
+	}
+	return temp, true, true
+end
+
 -- retrieves the url slug for a given realm name
 local function GetRealmSlug(realm)
 	return ns.realmSlugs[realm] or realm
@@ -1074,8 +1118,18 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		-- if not, then are we queued for, or hosting a group for a keystone run?
 		if not focusOnDungeonIndex then
 			local queued, isHosting = GetLFDStatus()
+			local waitingInsideDungeon
+			-- if no LFD, are we inside a dungeon we'd like to show the score for?
+			if not queued or isHosting == nil then
+				queued, isHosting, waitingInsideDungeon = GetInstanceStatus()
+			end
 			if queued and isHosting ~= nil then
 				if isHosting then
+					-- we are inside dungeon waiting on our group
+					if waitingInsideDungeon and (queued.index == 12 or queued.index == 13) then -- we don't know what part of karazhan we are doing
+						queued.index = profile.dungeons[12] > profile.dungeons[13] and 12 or 13 -- pick best score (lower or upper)
+						queued.dungeon = DUNGEONS[queued.index] -- adjust the dungeon data we display
+					end
 					-- we are hosting, so this is the only keystone we are interested in showing
 					if profile.dungeons[queued.index] > 0 then
 						qHighlightStrSameAsBest = profile.maxDungeonName == queued.dungeon.shortName
@@ -1881,6 +1935,29 @@ do
 			if not avgScore then return end
 			tooltip:AddLine(" ")
 			tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, avgScore, 1, 0.85, 0, 1, 1, 1)
+			local index = KEYSTONE_INST_TO_ZONEID[inst]
+			if index then
+				local netGain = 0
+				for i = 0, GetNumGroupMembers(), 1 do
+					local unit = i == 0 and "player" or "party" .. i
+					local profile = GetScore(unit)
+					if profile then
+						local level = profile.dungeons[index]
+						netGain = netGain + lvl - level
+						tooltip:AddDoubleLine(UnitName(unit), "+" .. level, 1, 1, 1, 1, 1, 1)
+					end
+				end
+				local sign = "~"
+				local r, g, b = 1, 1, 1
+				if netGain > 0 then
+					sign = "+"
+					r, g, b = .5, 1, .5
+				elseif netGain < 0 then
+					sign = "-"
+					r, g, b = 1, .5, .5
+				end
+				tooltip:AddDoubleLine(" ", sign .. netGain, 1, 1, 1, r, g, b)
+			end
 			tooltip:Show()
 		end
 		GameTooltip:HookScript("OnTooltipSetItem", OnSetItem)

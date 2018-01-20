@@ -30,6 +30,7 @@ local addonConfig = {
 	showMainsScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
+	showScoreInCombat = true,
 	disableScoreColors = false,
 	alwaysExtendTooltip = false,
 }
@@ -119,6 +120,37 @@ local LFD_ACTIVITYID_TO_ZONEID = {
 	-- [0] = 12, -- LOWER
 	-- [0] = 13, -- UPPER
 	-- [429] = 0, -- AOVH
+}
+local KEYSTONE_LEVEL_TO_AVG_SCORE = {
+	["2"] = 20,
+	["3"] = 30,
+	["4"] = 40,
+	["5"] = 50,
+	["6"] = 60,
+	["7"] = 70,
+	["8"] = 80,
+	["9"] = 90,
+	["10"] = 100,
+	["11"] = 110,
+	["12"] = 121,
+	["13"] = 133,
+	["14"] = 146,
+	["15"] = 161,
+	["16"] = 177,
+	["17"] = 195,
+	["18"] = 214,
+	["19"] = 236,
+	["20"] = 259,
+	["21"] = 285,
+	["22"] = 314,
+	["23"] = 345,
+	["24"] = 380,
+	["25"] = 418,
+	["26"] = 459,
+	["27"] = 505,
+	["28"] = 556,
+	["29"] = 612,
+	["30"] = 673,
 }
 
 -- easter
@@ -402,7 +434,7 @@ local function InitConfig()
 
 	-- customize the look and feel
 	do
-		configFrame:SetSize(360, 496)
+		configFrame:SetSize(1024, 1024) -- narrowed later in the code
 		configFrame:SetPoint("CENTER")
 		configFrame:SetFrameStrata("DIALOG")
 		configFrame:SetFrameLevel(255)
@@ -471,7 +503,8 @@ local function InitConfig()
 		config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 		config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
 		config:CreateOptionToggle(L.ALWAYS_SHOW_EXTENDED_INFO, L.ALWAYS_SHOW_EXTENDED_INFO_DESC, "alwaysExtendTooltip")
-		-- config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
+		config:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
+		config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 
 		config:CreatePadding()
 		config:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
@@ -505,11 +538,21 @@ local function InitConfig()
 
 		-- adjust frame height dynamically
 		local children = {configFrame:GetChildren()}
-		local height = 32
+		local height = 32 + 4
 		for i = 1, #children do
 			height = height + children[i]:GetHeight() + 2
 		end
 		configFrame:SetHeight(height)
+
+		-- adjust frame width dynamically (add padding based on the largest option label string)
+		local maxWidth = 0
+		for i = 1, #config.options do
+			local option = config.options[i]
+			if option.text and option.text:GetObjectType() == "FontString" then
+				maxWidth = max(maxWidth, option.text:GetStringWidth())
+			end
+		end
+		configFrame:SetWidth(160 + maxWidth)
 
 		-- add faction headers over the first module
 		local af = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_02:0:0:0:0:16:16:4:12:4:12|t")
@@ -1368,6 +1411,9 @@ do
 			if not addonConfig.enableUnitTooltips then
 				return
 			end
+			if not addonConfig.showScoreInCombat and InCombatLockdown() then
+				return
+			end
 			local _, unit = self:GetUnit()
 			AppendGameTooltip(self, unit, nil, nil, GetFaction(unit), nil)
 		end)
@@ -1820,30 +1866,27 @@ do
 		return 1
 	end
 
-	-- Keystone GameTooltip + ItemRefTooltip
-	--[=[
+	-- Keystone Info
 	uiHooks[#uiHooks + 1] = function()
 		local function OnSetItem(tooltip)
 			if not addonConfig.enableKeystoneTooltips then
 				return
 			end
 			local _, link = tooltip:GetItem()
-			if type(link) == "string" and link:find("keystone:", nil, true) then
-				local inst, lvl, a1, a2, a3 = link:match("keystone:(%d+):(%d+):(%d+):(%d+):(%d+)")
-				if inst then
-					-- TODO: evaluate the instance, level and affixes compared to our score, can we make it?
-					tooltip:AddLine(" ")
-					tooltip:AddLine("Raider.IO", 1, 0.85, 0, false)
-					tooltip:AddLine((lvl * 50) .. " score is recommended for this dungeon.", 1, 1, 1, false)
-					tooltip:Show()
-				end
-			end
+			if type(link) ~= "string" then return end
+			local inst, lvl, a1, a2, a3 = link:match("keystone:(%d+):(%d+):(%d+):(%d+):(%d+)")
+			if not lvl then inst, lvl, a1, a2, a3 = link:match("item:138019:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+)") end
+			if not lvl then return end
+			local avgScore = KEYSTONE_LEVEL_TO_AVG_SCORE[lvl]
+			if not avgScore then return end
+			tooltip:AddLine(" ")
+			tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, avgScore, 1, 0.85, 0, 1, 1, 1)
+			tooltip:Show()
 		end
 		GameTooltip:HookScript("OnTooltipSetItem", OnSetItem)
 		ItemRefTooltip:HookScript("OnTooltipSetItem", OnSetItem)
 		return 1
 	end
-	--]=]
 end
 
 -- register events and wait for the addon load event to fire

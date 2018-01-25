@@ -1906,10 +1906,10 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if addonConfig.showDropDownCopyURL then
 			local append = {
-				"PLAYER",
+				-- "PLAYER", -- TAINT?
 				"FRIEND",
-				"BN_FRIEND",
-				-- "GUILD",
+				-- "BN_FRIEND", -- TAINT?
+				-- "GUILD", -- TAINT
 			}
 			for i = 1, #append do
 				local key = append[i]
@@ -1937,26 +1937,29 @@ do
 			tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, avgScore, 1, 0.85, 0, 1, 1, 1)
 			local index = KEYSTONE_INST_TO_ZONEID[inst]
 			if index then
-				local netGain = 0
-				for i = 0, GetNumGroupMembers(), 1 do
-					local unit = i == 0 and "player" or "party" .. i
-					local profile = GetScore(unit)
-					if profile then
-						local level = profile.dungeons[index]
-						netGain = netGain + lvl - level
-						tooltip:AddDoubleLine(UnitName(unit), "+" .. level, 1, 1, 1, 1, 1, 1)
+				local n = GetNumGroupMembers()
+				if n <= 5 then -- let's show score only if we are in a 5 man group/raid
+					local netGain = 0
+					for i = 0, n, 1 do
+						local unit = i == 0 and "player" or "party" .. i
+						local profile = GetScore(unit)
+						if profile then
+							local level = profile.dungeons[index]
+							netGain = netGain + lvl - level
+							tooltip:AddDoubleLine(UnitName(unit), "+" .. level, 1, 1, 1, 1, 1, 1)
+						end
 					end
+					local sign = "~"
+					local r, g, b = 1, 1, 1
+					if netGain > 0 then
+						sign = "+"
+						r, g, b = .5, 1, .5
+					elseif netGain < 0 then
+						sign = "-"
+						r, g, b = 1, .5, .5
+					end
+					tooltip:AddDoubleLine(" ", sign .. netGain, 1, 1, 1, r, g, b)
 				end
-				local sign = "~"
-				local r, g, b = 1, 1, 1
-				if netGain > 0 then
-					sign = "+"
-					r, g, b = .5, 1, .5
-				elseif netGain < 0 then
-					sign = "-"
-					r, g, b = 1, .5, .5
-				end
-				tooltip:AddDoubleLine(" ", sign .. netGain, 1, 1, 1, r, g, b)
 			end
 			tooltip:Show()
 		end

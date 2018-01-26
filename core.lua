@@ -151,7 +151,7 @@ local KEYSTONE_INST_TO_ZONEID = {
 	["227"] = 12, -- LOWER
 	["234"] = 13, -- UPPER
 }
-local KEYSTONE_LEVEL_TO_AVG_SCORE = {
+local KEYSTONE_LEVEL_TO_BASE_SCORE = {
 	["2"] = 20,
 	["3"] = 30,
 	["4"] = 40,
@@ -1906,7 +1906,7 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if addonConfig.showDropDownCopyURL then
 			local append = {
-				-- "PLAYER", -- TAINT?
+				"PLAYER", -- TAINT?
 				"FRIEND",
 				-- "BN_FRIEND", -- TAINT?
 				-- "GUILD", -- TAINT
@@ -1931,34 +1931,26 @@ do
 			local inst, lvl, a1, a2, a3 = link:match("keystone:(%d+):(%d+):(%d+):(%d+):(%d+)")
 			if not lvl then inst, lvl, a1, a2, a3 = link:match("item:138019:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+)") end
 			if not lvl then return end
-			local avgScore = KEYSTONE_LEVEL_TO_AVG_SCORE[lvl]
-			if not avgScore then return end
+			local baseScore = KEYSTONE_LEVEL_TO_BASE_SCORE[lvl]
+			if not baseScore then return end
 			tooltip:AddLine(" ")
-			tooltip:AddDoubleLine(L.RAIDERIO_MP_SCORE, avgScore, 1, 0.85, 0, 1, 1, 1)
+			tooltip:AddDoubleLine(L.RAIDERIO_MP_BASE_SCORE, baseScore, 1, 0.85, 0, 1, 1, 1)
 			local index = KEYSTONE_INST_TO_ZONEID[inst]
 			if index then
 				local n = GetNumGroupMembers()
 				if n <= 5 then -- let's show score only if we are in a 5 man group/raid
-					local netGain = 0
 					for i = 0, n, 1 do
 						local unit = i == 0 and "player" or "party" .. i
 						local profile = GetScore(unit)
 						if profile then
 							local level = profile.dungeons[index]
-							netGain = netGain + lvl - level
-							tooltip:AddDoubleLine(UnitName(unit), "+" .. level, 1, 1, 1, 1, 1, 1)
+							if level > 0 then
+								-- TODO: sort these by dungeon level, descending
+								local dungeonName = DUNGEONS[index] and " " .. DUNGEONS[index].shortName or ""
+								tooltip:AddDoubleLine(UnitName(unit), "+" .. level .. dungeonName, 1, 1, 1, 1, 1, 1)
+							end
 						end
 					end
-					local sign = "~"
-					local r, g, b = 1, 1, 1
-					if netGain > 0 then
-						sign = "+"
-						r, g, b = .5, 1, .5
-					elseif netGain < 0 then
-						sign = "-"
-						r, g, b = 1, .5, .5
-					end
-					tooltip:AddDoubleLine(" ", sign .. netGain, 1, 1, 1, r, g, b)
 				end
 			end
 			tooltip:Show()

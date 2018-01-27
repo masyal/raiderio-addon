@@ -30,6 +30,7 @@ local addonConfig = {
 	showMainsScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
+	showScoreInCombat = true,
 	disableScoreColors = false,
 	alwaysExtendTooltip = false,
 }
@@ -119,6 +120,67 @@ local LFD_ACTIVITYID_TO_ZONEID = {
 	-- [0] = 12, -- LOWER
 	-- [0] = 13, -- UPPER
 	-- [429] = 0, -- AOVH
+}
+local DUNGEON_INSTANCEMAPID_TO_ZONEID = {
+	[1458] = 1, -- NL
+	[1477] = 2, -- HOV
+	[1466] = 3, -- DHT
+	[1493] = 4, -- VOTW
+	[1501] = 5, -- BRH
+	[1492] = 6, -- MOS
+	[1516] = 7, -- ARC
+	[1456] = 8, -- EOA
+	[1571] = 9, -- COS
+	[1677] = 10, -- CATH
+	[1753] = 11, -- SEAT
+	[1651] = 12, -- LOWER
+	-- [1651] = 13, -- UPPER -- has separate logic to handle this (we just pick best score out of these two)
+}
+local KEYSTONE_INST_TO_ZONEID = {
+	["206"] = 1, -- NL
+	["200"] = 2, -- HOV
+	["198"] = 3, -- DHT
+	["207"] = 4, -- VOTW
+	["199"] = 5, -- BRH
+	["208"] = 6, -- MOS
+	["209"] = 7, -- ARC
+	["197"] = 8, -- EOA
+	["210"] = 9, -- COS
+	["233"] = 10, -- CATH
+	["239"] = 11, -- SEAT
+	["227"] = 12, -- LOWER
+	["234"] = 13, -- UPPER
+}
+local KEYSTONE_LEVEL_TO_BASE_SCORE = {
+	["2"] = 20,
+	["3"] = 30,
+	["4"] = 40,
+	["5"] = 50,
+	["6"] = 60,
+	["7"] = 70,
+	["8"] = 80,
+	["9"] = 90,
+	["10"] = 100,
+	["11"] = 110,
+	["12"] = 121,
+	["13"] = 133,
+	["14"] = 146,
+	["15"] = 161,
+	["16"] = 177,
+	["17"] = 195,
+	["18"] = 214,
+	["19"] = 236,
+	["20"] = 259,
+	["21"] = 285,
+	["22"] = 314,
+	["23"] = 345,
+	["24"] = 380,
+	["25"] = 418,
+	["26"] = 459,
+	["27"] = 505,
+	["28"] = 556,
+	["29"] = 612,
+	["30"] = 673,
 }
 
 -- easter
@@ -402,7 +464,7 @@ local function InitConfig()
 
 	-- customize the look and feel
 	do
-		configFrame:SetSize(360, 496)
+		configFrame:SetSize(1024, 1024) -- narrowed later in the code
 		configFrame:SetPoint("CENTER")
 		configFrame:SetFrameStrata("DIALOG")
 		configFrame:SetFrameLevel(255)
@@ -471,7 +533,8 @@ local function InitConfig()
 		config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 		config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
 		config:CreateOptionToggle(L.ALWAYS_SHOW_EXTENDED_INFO, L.ALWAYS_SHOW_EXTENDED_INFO_DESC, "alwaysExtendTooltip")
-		-- config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
+		config:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
+		config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 
 		config:CreatePadding()
 		config:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
@@ -505,11 +568,21 @@ local function InitConfig()
 
 		-- adjust frame height dynamically
 		local children = {configFrame:GetChildren()}
-		local height = 32
+		local height = 32 + 4
 		for i = 1, #children do
 			height = height + children[i]:GetHeight() + 2
 		end
 		configFrame:SetHeight(height)
+
+		-- adjust frame width dynamically (add padding based on the largest option label string)
+		local maxWidth = 0
+		for i = 1, #config.options do
+			local option = config.options[i]
+			if option.text and option.text:GetObjectType() == "FontString" then
+				maxWidth = max(maxWidth, option.text:GetStringWidth())
+			end
+		end
+		configFrame:SetWidth(160 + maxWidth)
 
 		-- add faction headers over the first module
 		local af = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_02:0:0:0:0:16:16:4:12:4:12|t")
@@ -636,6 +709,20 @@ local function GetLFDStatus()
 	if temp[1] then
 		return temp, false
 	end
+end
+
+-- detect what instance we are in
+local function GetInstanceStatus()
+	local _, instanceType, _, _, _, _, _, instanceMapID = GetInstanceInfo()
+	if instanceType ~= "party" then return end
+	local index = DUNGEON_INSTANCEMAPID_TO_ZONEID[instanceMapID]
+	if not index then return end
+	local temp = {
+		index = index,
+		dungeon = DUNGEONS[index],
+		level = 0
+	}
+	return temp, true, true
 end
 
 -- retrieves the url slug for a given realm name
@@ -1031,8 +1118,18 @@ local function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, fo
 		-- if not, then are we queued for, or hosting a group for a keystone run?
 		if not focusOnDungeonIndex then
 			local queued, isHosting = GetLFDStatus()
+			local waitingInsideDungeon
+			-- if no LFD, are we inside a dungeon we'd like to show the score for?
+			if not queued or isHosting == nil then
+				queued, isHosting, waitingInsideDungeon = GetInstanceStatus()
+			end
 			if queued and isHosting ~= nil then
 				if isHosting then
+					-- we are inside dungeon waiting on our group
+					if waitingInsideDungeon and (queued.index == 12 or queued.index == 13) then -- we don't know what part of karazhan we are doing
+						queued.index = profile.dungeons[12] > profile.dungeons[13] and 12 or 13 -- pick best score (lower or upper)
+						queued.dungeon = DUNGEONS[queued.index] -- adjust the dungeon data we display
+					end
 					-- we are hosting, so this is the only keystone we are interested in showing
 					if profile.dungeons[queued.index] > 0 then
 						qHighlightStrSameAsBest = profile.maxDungeonName == queued.dungeon.shortName
@@ -1366,6 +1463,9 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		GameTooltip:HookScript("OnTooltipSetUnit", function(self)
 			if not addonConfig.enableUnitTooltips then
+				return
+			end
+			if not addonConfig.showScoreInCombat and InCombatLockdown() then
 				return
 			end
 			local _, unit = self:GetUnit()
@@ -1806,10 +1906,10 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if addonConfig.showDropDownCopyURL then
 			local append = {
-				"PLAYER",
+				"PLAYER", -- TAINT?
 				"FRIEND",
-				"BN_FRIEND",
-				-- "GUILD",
+				-- "BN_FRIEND", -- TAINT?
+				-- "GUILD", -- TAINT
 			}
 			for i = 1, #append do
 				local key = append[i]
@@ -1820,30 +1920,45 @@ do
 		return 1
 	end
 
-	-- Keystone GameTooltip + ItemRefTooltip
-	--[=[
+	-- Keystone Info
 	uiHooks[#uiHooks + 1] = function()
 		local function OnSetItem(tooltip)
 			if not addonConfig.enableKeystoneTooltips then
 				return
 			end
 			local _, link = tooltip:GetItem()
-			if type(link) == "string" and link:find("keystone:", nil, true) then
-				local inst, lvl, a1, a2, a3 = link:match("keystone:(%d+):(%d+):(%d+):(%d+):(%d+)")
-				if inst then
-					-- TODO: evaluate the instance, level and affixes compared to our score, can we make it?
-					tooltip:AddLine(" ")
-					tooltip:AddLine("Raider.IO", 1, 0.85, 0, false)
-					tooltip:AddLine((lvl * 50) .. " score is recommended for this dungeon.", 1, 1, 1, false)
-					tooltip:Show()
+			if type(link) ~= "string" then return end
+			local inst, lvl, a1, a2, a3 = link:match("keystone:(%d+):(%d+):(%d+):(%d+):(%d+)")
+			if not lvl then inst, lvl, a1, a2, a3 = link:match("item:138019:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+)") end
+			if not lvl then return end
+			local baseScore = KEYSTONE_LEVEL_TO_BASE_SCORE[lvl]
+			if not baseScore then return end
+			tooltip:AddLine(" ")
+			tooltip:AddDoubleLine(L.RAIDERIO_MP_BASE_SCORE, baseScore, 1, 0.85, 0, 1, 1, 1)
+			local index = KEYSTONE_INST_TO_ZONEID[inst]
+			if index then
+				local n = GetNumGroupMembers()
+				if n <= 5 then -- let's show score only if we are in a 5 man group/raid
+					for i = 0, n, 1 do
+						local unit = i == 0 and "player" or "party" .. i
+						local profile = GetScore(unit)
+						if profile then
+							local level = profile.dungeons[index]
+							if level > 0 then
+								-- TODO: sort these by dungeon level, descending
+								local dungeonName = DUNGEONS[index] and " " .. DUNGEONS[index].shortName or ""
+								tooltip:AddDoubleLine(UnitName(unit), "+" .. level .. dungeonName, 1, 1, 1, 1, 1, 1)
+							end
+						end
+					end
 				end
 			end
+			tooltip:Show()
 		end
 		GameTooltip:HookScript("OnTooltipSetItem", OnSetItem)
 		ItemRefTooltip:HookScript("OnTooltipSetItem", OnSetItem)
 		return 1
 	end
-	--]=]
 end
 
 -- register events and wait for the addon load event to fire

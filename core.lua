@@ -93,35 +93,35 @@ do
 	}
 
 	KEYSTONE_LEVEL_TO_BASE_SCORE = {
-		["2"] = 20,
-		["3"] = 30,
-		["4"] = 40,
-		["5"] = 50,
-		["6"] = 60,
-		["7"] = 70,
-		["8"] = 80,
-		["9"] = 90,
-		["10"] = 100,
-		["11"] = 110,
-		["12"] = 121,
-		["13"] = 133,
-		["14"] = 146,
-		["15"] = 161,
-		["16"] = 177,
-		["17"] = 195,
-		["18"] = 214,
-		["19"] = 236,
-		["20"] = 259,
-		["21"] = 285,
-		["22"] = 314,
-		["23"] = 345,
-		["24"] = 380,
-		["25"] = 418,
-		["26"] = 459,
-		["27"] = 505,
-		["28"] = 556,
-		["29"] = 612,
-		["30"] = 673,
+		[2] = 20,
+		[3] = 30,
+		[4] = 40,
+		[5] = 50,
+		[6] = 60,
+		[7] = 70,
+		[8] = 80,
+		[9] = 90,
+		[10] = 100,
+		[11] = 110,
+		[12] = 121,
+		[13] = 133,
+		[14] = 146,
+		[15] = 161,
+		[16] = 177,
+		[17] = 195,
+		[18] = 214,
+		[19] = 236,
+		[20] = 259,
+		[21] = 285,
+		[22] = 314,
+		[23] = 345,
+		[24] = 380,
+		[25] = 418,
+		[26] = 459,
+		[27] = 505,
+		[28] = 556,
+		[29] = 612,
+		[30] = 673,
 	}
 
 	LFD_ACTIVITYID_TO_DUNGEONID = {
@@ -506,10 +506,12 @@ do
 			for i = 1, #config.options do
 				local f = config.options[i]
 				local checked = f.checkButton:GetChecked()
+				--[=[ -- TODO: OBSCOLETE?
 				local enabled = addonConfig[f.cvar]
 				if f.cvar == "showDropDownCopyURL" and ((not enabled and checked) or (enabled and not checked)) then
 					reload = 1
 				end
+				--]=]
 				addonConfig[f.cvar] = not not checked
 			end
 			if reload then
@@ -1457,12 +1459,12 @@ do
 		if index then
 			local numGameAccounts = BNGetNumFriendGameAccounts(index)
 			for i = 1, numGameAccounts do
-				local _, characterName, client, realmName, _, faction = BNGetFriendGameAccountInfo(index, i)
+				local _, characterName, client, realmName, _, faction, _, _, _, _, level = BNGetFriendGameAccountInfo(index, i)
 				if client == BNET_CLIENT_WOW then
 					if realmName then
 						characterName = characterName .. "-" .. realmName:gsub("%s+", "")
 					end
-					return characterName, FACTION[faction]
+					return characterName, FACTION[faction], tonumber(level)
 				end
 			end
 		end
@@ -1597,7 +1599,7 @@ do
 			end
 			if self.whoIndex then
 				local name, guild, level, race, class, zone, classFileName = GetWhoInfo(self.whoIndex)
-				if name then
+				if name and level and level >= MAX_LEVEL then
 					local hasOwner = GameTooltip:GetOwner()
 					if not hasOwner then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
@@ -1627,15 +1629,15 @@ do
 			if not addonConfig.enableFriendsTooltips then
 				return
 			end
-			local fullName, faction
+			local fullName, faction, level
 			if self.buttonType == FRIENDS_BUTTON_TYPE_BNET then
 				local bnetIDAccount = BNGetFriendInfo(self.id)
-				fullName, faction = GetNameAndRealmForBNetFriend(bnetIDAccount)
+				fullName, faction, level = GetNameAndRealmForBNetFriend(bnetIDAccount)
 			elseif self.buttonType == FRIENDS_BUTTON_TYPE_WOW then
-				fullName = GetFriendInfo(self.id)
+				fullName, level = GetFriendInfo(self.id)
 				faction = PLAYER_FACTION
 			end
-			if fullName then
+			if fullName and level and level >= MAX_LEVEL then
 				GameTooltip:SetOwner(FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
 				if not AppendGameTooltip(GameTooltip, fullName, true, true, faction, nil) then
 					GameTooltip:Hide()
@@ -1668,8 +1670,8 @@ do
 					return
 				end
 				if self.guildIndex then
-					local fullName = GetGuildRosterInfo(self.guildIndex)
-					if fullName then
+					local fullName, _, _, level = GetGuildRosterInfo(self.guildIndex)
+					if fullName and level >= MAX_LEVEL then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 						if not AppendGameTooltip(GameTooltip, fullName, true, false, PLAYER_FACTION, nil) then
 							GameTooltip:Hide()
@@ -1788,15 +1790,15 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		local function CanCopyURL(which, unit, name, bnetIDAccount)
 			if UnitExists(unit) then
-				return UnitIsPlayer(unit),
-					name or GetUnitName(unit, true),
+				return UnitIsPlayer(unit) and UnitLevel(unit) >= MAX_LEVEL,
+					GetUnitName(unit, true) or name,
 					"UNIT"
 			elseif which and which:find("^BN_") then
-				local charName, charFaction
+				local charName, charFaction, charLevel
 				if bnetIDAccount then
-					charName, charFaction = GetNameAndRealmForBNetFriend(bnetIDAccount)
+					charName, charFaction, charLevel = GetNameAndRealmForBNetFriend(bnetIDAccount)
 				end
-				return not not charName,
+				return charName and charLevel and charLevel >= MAX_LEVEL,
 					bnetIDAccount,
 					"BN",
 					charName,
@@ -1813,13 +1815,54 @@ do
 		end
 		local supportedTypes = {
 			SELF = 1,
-			TARGET = 1,
-			FOCUS = 1,
+			PARTY = 1,
 			PLAYER = 1,
-			GUILD = 1,
+			RAID_PLAYER = 1,
+			RAID = 1,
 			FRIEND = 1,
 			BN_FRIEND = 1,
+			GUILD = 1,
+			GUILD_OFFLINE = 1,
+			CHAT_ROSTER = 1,
+			TARGET = 1,
+			ARENAENEMY = 1,
+			FOCUS = 1,
+			WORLD_STATE_SCORE = 1,
 		}
+		local OFFSET_BETWEEN = 6 -- default UI makes this offset look nice
+		local reskinDropDownList
+		do
+			local addons = {
+				{
+					name = "Aurora",
+					func = function(list)
+						local F = _G.Aurora[1]
+						local menu = _G[list:GetName() .. "MenuBackdrop"]
+						local backdrop = _G[list:GetName() .. "Backdrop"]
+						if not backdrop.reskinned then
+							F.CreateBD(menu)
+							F.CreateBD(backdrop)
+							backdrop.reskinned = true
+						end
+						OFFSET_BETWEEN = -0.5 -- need no gaps so the frames align with this addon
+						return true
+					end
+				},
+			}
+			local skinned = {}
+			function reskinDropDownList(list)
+				if skinned[list] then
+					return
+				end
+				for i = 1, #addons do
+					local addon = addons[i]
+					if IsAddOnLoaded(addon.name) then
+						skinned[list] = addon.func(list)
+						break
+					end
+				end
+			end
+		end
 		local custom
 		do
 			local function CopyOnClick()
@@ -1855,6 +1898,8 @@ do
 			end
 			custom = CreateFrame("Button", addonName .. "CustomDropDownList", UIParent, "UIDropDownListTemplate")
 			custom:Hide()
+			-- attempt to reskin using popular frameworks
+			reskinDropDownList(custom)
 			-- cleanup and modify the default template
 			do
 				custom:SetScript("OnClick", nil)
@@ -1908,8 +1953,8 @@ do
 			custom:SetFrameStrata(list:GetFrameStrata())
 			custom:SetFrameLevel(list:GetFrameLevel() + 2)
 			custom:ClearAllPoints()
-			custom:SetPoint("TOPLEFT", list, "BOTTOMLEFT", 0, 6)
-			custom:SetPoint("TOPRIGHT", list, "BOTTOMRIGHT", 0, 6)
+			custom:SetPoint("TOPLEFT", list, "BOTTOMLEFT", 0, OFFSET_BETWEEN)
+			custom:SetPoint("TOPRIGHT", list, "BOTTOMRIGHT", 0, OFFSET_BETWEEN)
 			custom:Show()
 		end
 		local function HideCustomDropDown()
@@ -1921,7 +1966,7 @@ do
 				return
 			end
 			if dropdown.Button == _G.LFGListFrameDropDownButton then -- LFD
-				if addonConfig.enableLFGTooltips then
+				if addonConfig.enableLFGDropdown then
 					ShowCustomDropDown(self, dropdown, dropdown.menuList[2].arg1)
 				end
 			elseif dropdown.which and supportedTypes[dropdown.which] then -- UnitPopup

@@ -1,7 +1,7 @@
 ## Interface: 70300
 ## Title: Raider.IO Mythic Plus (Americas - Horde)
 ## Notes: Raider.IO Mythic Plus Scores DB for Americas - Horde. Updated nightly.
-## Author: Vladinator (Cyan-Darksorrow) and Aspyr (Aspyrael-Skullcrusher)
+## Author: Vladinator (Voidzone-Ravencrest) and Aspyr (Aspyrael-Skullcrusher)
 ## Dependencies: RaiderIO
 ## DefaultState: enabled
 ## X-Region: Americas

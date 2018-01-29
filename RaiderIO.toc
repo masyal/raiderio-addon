@@ -1,8 +1,8 @@
 ## Interface: 70300
 ## Title: Raider.IO Mythic Plus
 ## Notes: Shows Raider.IO Mythic+ Scores in-game. Make sure to load one or more region DB.
-## Author: Vladinator (Cyan-Darksorrow) and Aspyr (Aspyrael-Skullcrusher)
-## Version: 7.3.2 (@project-version@)
+## Author: Vladinator (Voidzone-Ravencrest) and Aspyr (Aspyrael-Skullcrusher)
+## Version: 7.3.5 (@project-version@)
 ## SavedVariables: RaiderIO_Config
 ## X-Website: https://raider.io
 

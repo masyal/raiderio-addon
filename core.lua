@@ -1521,6 +1521,7 @@ do
 			if not addonConfig.showScoreInCombat and InCombatLockdown() then
 				return
 			end
+			-- TODO: summoning portals don't always trigger OnTooltipSetUnit properly, leaving the unit tooltip on the portal object
 			local _, unit = self:GetUnit()
 			AppendGameTooltip(self, unit, nil, nil, GetFaction(unit), nil)
 		end
@@ -1576,9 +1577,6 @@ do
 				local b = _G["LFGListApplicationViewerScrollFrameButton" .. i]
 				b:HookScript("OnEnter", OnEnter)
 				b:HookScript("OnLeave", OnLeave)
-			end
-			for i = 1, 10 do
-				local b = _G["LFGListSearchPanelScrollFrameButton" .. i]
 			end
 			-- UnempoweredCover blocking removal
 			do
@@ -1813,8 +1811,8 @@ do
 		local function ShowCopyURLPopup(kind, query, bnetChar, bnetFaction)
 			CopyURLForNameAndRealm(bnetChar or query)
 		end
+		-- TODO: figure out the type of menus we don't really need to show our copy link button
 		local supportedTypes = {
-			SELF = 1,
 			PARTY = 1,
 			PLAYER = 1,
 			RAID_PLAYER = 1,
@@ -1833,7 +1831,7 @@ do
 		local reskinDropDownList
 		do
 			local addons = {
-				{
+				{ -- Aurora
 					name = "Aurora",
 					func = function(list)
 						local F = _G.Aurora[1]
@@ -1845,14 +1843,14 @@ do
 							backdrop.reskinned = true
 						end
 						OFFSET_BETWEEN = -0.5 -- need no gaps so the frames align with this addon
-						return true
+						return 1
 					end
 				},
 			}
 			local skinned = {}
 			function reskinDropDownList(list)
 				if skinned[list] then
-					return
+					return skinned[list]
 				end
 				for i = 1, #addons do
 					local addon = addons[i]
@@ -1899,7 +1897,10 @@ do
 			custom = CreateFrame("Button", addonName .. "CustomDropDownList", UIParent, "UIDropDownListTemplate")
 			custom:Hide()
 			-- attempt to reskin using popular frameworks
-			reskinDropDownList(custom)
+			-- skinType = nil : not skinned
+			-- skinType = 1 : skinned, apply further visual modifications (the addon does a good job, but we need to iron out some issues)
+			-- skinType = 2 : skinned, no need to apply further visual modifications (the addon handles it flawlessly)
+			local skinType = reskinDropDownList(custom)
 			-- cleanup and modify the default template
 			do
 				custom:SetScript("OnClick", nil)

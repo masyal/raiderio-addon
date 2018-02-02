@@ -1813,6 +1813,7 @@ do
 		end
 		-- TODO: figure out the type of menus we don't really need to show our copy link button
 		local supportedTypes = {
+			-- SELF = 1, -- do we really need this? can always target self anywhere else and copy our own url
 			PARTY = 1,
 			PLAYER = 1,
 			RAID_PLAYER = 1,
@@ -1842,7 +1843,7 @@ do
 							F.CreateBD(backdrop)
 							backdrop.reskinned = true
 						end
-						OFFSET_BETWEEN = -0.5 -- need no gaps so the frames align with this addon
+						OFFSET_BETWEEN = -1 -- need no gaps so the frames align with this addon
 						return 1
 					end
 				},
@@ -1875,6 +1876,12 @@ do
 				copy:SetScript("OnClick", CopyOnClick)
 				copy:Show()
 			end
+			local function CustomOnEnter(self) -- UIDropDownMenuTemplates.xml#248
+				UIDropDownMenu_StopCounting(self:GetParent()) -- TODO: this might taint and break like before, but let's try it and observe
+			end
+			local function CustomOnLeave(self) -- UIDropDownMenuTemplates.xml#251
+				UIDropDownMenu_StartCounting(self:GetParent()) -- TODO: this might taint and break like before, but let's try it and observe
+			end
 			local function CustomOnShow(self) -- UIDropDownMenuTemplates.xml#257
 				local p = self:GetParent() or self
 				local w = p:GetWidth()
@@ -1890,9 +1897,11 @@ do
 			end
 			local function CustomButtonOnEnter(self) -- UIDropDownMenuTemplates.xml#155
 				_G[self:GetName() .. "Highlight"]:Show()
+				CustomOnEnter(self:GetParent())
 			end
 			local function CustomButtonOnLeave(self) -- UIDropDownMenuTemplates.xml#178
 				_G[self:GetName() .. "Highlight"]:Hide()
+				CustomOnLeave(self:GetParent())
 			end
 			custom = CreateFrame("Button", addonName .. "CustomDropDownList", UIParent, "UIDropDownListTemplate")
 			custom:Hide()
@@ -1904,8 +1913,8 @@ do
 			-- cleanup and modify the default template
 			do
 				custom:SetScript("OnClick", nil)
-				custom:SetScript("OnEnter", nil)
-				custom:SetScript("OnLeave", nil)
+				custom:SetScript("OnEnter", CustomOnEnter)
+				custom:SetScript("OnLeave", CustomOnLeave)
 				custom:SetScript("OnUpdate", nil)
 				custom:SetScript("OnShow", CustomOnShow)
 				custom:SetScript("OnHide", nil)

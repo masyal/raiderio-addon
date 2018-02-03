@@ -1827,8 +1827,9 @@ do
 			ARENAENEMY = 1,
 			FOCUS = 1,
 			WORLD_STATE_SCORE = 1,
+			SELF = 1
 		}
-		local OFFSET_BETWEEN = 6 -- default UI makes this offset look nice
+		local OFFSET_BETWEEN = -5 -- default UI makes this offset look nice
 		local reskinDropDownList
 		do
 			local addons = {

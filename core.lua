@@ -801,7 +801,18 @@ do
 			_G["SLASH_" .. addonName .. "1"] = "/raiderio"
 			_G["SLASH_" .. addonName .. "2"] = "/rio"
 	
-			local function handler()
+			local function handler(text)
+
+				-- if the keyword "debug" is present in the command we show the query dialog
+				if type(text) == "string" and text:find("[Dd][Ee][Bb][Uu][Gg]") then
+					if ns.DEBUG_UI then
+						ns.DEBUG_UI:SetShown(not ns.DEBUG_UI:IsShown())
+					end
+					-- we do not wish to show the config dialog at this time
+					return
+				end
+
+				-- resume regular routine
 				if not InCombatLockdown() then
 					configFrame:SetShown(not configFrame:IsShown())
 				end
@@ -1399,6 +1410,9 @@ do
 					end
 				else
 					dataProvider = data
+					-- debug.lua needs this for querying (also adding the tooltip bit because for now only these two are needed for debug.lua to function...)
+					ns.dataProvider = dataProvider
+					ns.AppendGameTooltip = AppendGameTooltip
 				end
 			else
 				-- disable the provider addon from loading in the future

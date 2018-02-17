@@ -23,3 +23,4 @@ locale/zhCN.lua
 locale/zhTW.lua
 
 core.lua
+debug.lua

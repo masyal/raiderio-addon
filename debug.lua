@@ -314,5 +314,5 @@ local function Init()
 	ns.DEBUG_UI = UI
 end
 
--- init
-Init()
+-- init from the slash handler in core.lua
+ns.DEBUG_INIT = Init

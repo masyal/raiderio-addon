@@ -1986,8 +1986,13 @@ do
 			custom:SetFrameStrata(list:GetFrameStrata())
 			custom:SetFrameLevel(list:GetFrameLevel() + 2)
 			custom:ClearAllPoints()
-			custom:SetPoint("TOPLEFT", list, "BOTTOMLEFT", 0, OFFSET_BETWEEN)
-			custom:SetPoint("TOPRIGHT", list, "BOTTOMRIGHT", 0, OFFSET_BETWEEN)
+			if list:GetBottom() >= 50 then
+				custom:SetPoint("TOPLEFT", list, "BOTTOMLEFT", 0, OFFSET_BETWEEN)
+				custom:SetPoint("TOPRIGHT", list, "BOTTOMRIGHT", 0, OFFSET_BETWEEN)
+			else
+				custom:SetPoint("BOTTOMLEFT", list, "TOPLEFT", 0, OFFSET_BETWEEN)
+				custom:SetPoint("BOTTOMRIGHT", list, "TOPRIGHT", 0, OFFSET_BETWEEN)
+			end
 			custom:Show()
 		end
 		local function HideCustomDropDown()

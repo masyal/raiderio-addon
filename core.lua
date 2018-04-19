@@ -74,8 +74,6 @@ local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning 
 local NUM_FIELDS_PER_CHARACTER = 3 -- number of fields in the database lookup table for each character
 local FACTION
 local REGIONS
-local REGIONS_RESET_TIME
-local KEYSTONE_AFFIX_SCHEDULE
 local KEYSTONE_LEVEL_TO_BASE_SCORE
 local LFD_ACTIVITYID_TO_DUNGEONID
 local DUNGEON_INSTANCEMAPID_TO_DUNGEONID
@@ -92,31 +90,6 @@ do
 		"eu",
 		"tw",
 		"cn"
-	}
-
-	REGIONS_WEEKLY_RESET_TIMESTAMP = {
-		1135695600,
-		1135810800,
-		1135753200,
-		1135810800,
-		1135810800,
-	}
-
-	KEYSTONE_AFFIX_SCHEDULE = {
-		 9, -- Fortified
-		10, -- Tyrannical
-		-- {  6,  4,  9 },
-		-- {  7,  2, 10 },
-		-- {  5,  3,  9 },
-		-- {  8, 12, 10 },
-		-- {  7, 13,  9 },
-		-- { 11, 14, 10 },
-		-- {  6,  3,  9 },
-		-- {  5, 13, 10 },
-		-- {  7, 12,  9 },
-		-- {  8,  4, 10 },
-		-- { 11,  2,  9 },
-		-- {  5, 14, 10 },
 	}
 
 	KEYSTONE_LEVEL_TO_BASE_SCORE = {
@@ -273,7 +246,6 @@ local GetInstanceStatus
 local GetRealmSlug
 local GetNameAndRealm
 local GetFaction
-local GetWeeklyAffix
 do
 	-- get timezone offset between local and UTC+0 time
 	function GetTimezoneOffset(ts)
@@ -416,15 +388,6 @@ do
 				return FACTION[faction]
 			end
 		end
-	end
-
-	-- returns affix ID based on the week
-	function GetWeeklyAffix(weekOffset)
-		local timestamp = time() + 604800 * (weekOffset or 0)
-		local timestampWeeklyReset = REGIONS_WEEKLY_RESET_TIMESTAMP[PLAYER_REGION]
-		local diff = difftime(timestamp, timestampWeeklyReset)
-		local index = floor(diff / 604800) % #KEYSTONE_AFFIX_SCHEDULE + 1
-		return KEYSTONE_AFFIX_SCHEDULE[index]
 	end
 end
 

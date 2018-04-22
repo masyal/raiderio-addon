@@ -1146,6 +1146,7 @@ do
 			-- setup tooltip hook
 			if not tooltipHooks[tooltip] then
 				tooltipHooks[tooltip] = true
+				tooltip:HookScript("OnTooltipCleared", tooltipHooks.Wipe)
 				tooltip:HookScript("OnHide", tooltipHooks.Wipe)
 			end
 

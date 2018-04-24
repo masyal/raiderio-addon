@@ -31,6 +31,9 @@ nppBackup/
 *.bak
 *.out
 
+# IntelliJ
+.idea/
+
 # Misc
 *.ignore
 

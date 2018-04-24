@@ -28,6 +28,7 @@ local addonConfig = {
 	showScoreInCombat = true,
 	disableScoreColors = false,
 	alwaysExtendTooltip = false,
+	showAverageScore = true,
 }
 
 -- session
@@ -57,6 +58,7 @@ local CONST_REGION_IDS = ns.regionIDs
 local CONST_SCORE_TIER = ns.scoreTiers
 local CONST_SCORE_TIER_SIMPLE = ns.scoreTiersSimple
 local CONST_DUNGEONS = ns.dungeons
+local CONST_AVERAGE_SCORE = ns.averageScore
 local L = ns.L
 
 -- enum dungeons
@@ -162,10 +164,10 @@ do
 		[467] = ENUM_DUNGEONS.ARC,
 		[459] = ENUM_DUNGEONS.EOA,
 		[466] = ENUM_DUNGEONS.COS,
-		[476] = ENUM_DUNGEONS.CATH,
+		[476] = ENUM_DUNGEONS.COEN,
 		[486] = ENUM_DUNGEONS.SEAT,
-		[471] = ENUM_DUNGEONS.LOWER,
-		[473] = ENUM_DUNGEONS.UPPER,
+		[471] = ENUM_DUNGEONS.LOWR,
+		[473] = ENUM_DUNGEONS.UPPR,
 		-- Mythic
 		[448] = ENUM_DUNGEONS.NL,
 		[447] = ENUM_DUNGEONS.HOV,
@@ -176,10 +178,10 @@ do
 		[454] = ENUM_DUNGEONS.ARC,
 		[445] = ENUM_DUNGEONS.EOA,
 		[453] = ENUM_DUNGEONS.COS,
-		[475] = ENUM_DUNGEONS.CATH,
+		[475] = ENUM_DUNGEONS.COEN,
 		[485] = ENUM_DUNGEONS.SEAT,
-		-- [455] = ENUM_DUNGEONS.LOWER,
-		-- [455] = ENUM_DUNGEONS.UPPER,
+		-- [455] = ENUM_DUNGEONS.LOWR,
+		-- [455] = ENUM_DUNGEONS.UPPR,
 		-- Heroic
 		[438] = ENUM_DUNGEONS.NL,
 		[437] = ENUM_DUNGEONS.HOV,
@@ -190,10 +192,10 @@ do
 		[444] = ENUM_DUNGEONS.ARC,
 		[435] = ENUM_DUNGEONS.EOA,
 		[443] = ENUM_DUNGEONS.COS,
-		[474] = ENUM_DUNGEONS.CATH,
+		[474] = ENUM_DUNGEONS.COEN,
 		[484] = ENUM_DUNGEONS.SEAT,
-		[470] = ENUM_DUNGEONS.LOWER,
-		[472] = ENUM_DUNGEONS.UPPER,
+		[470] = ENUM_DUNGEONS.LOWR,
+		[472] = ENUM_DUNGEONS.UPPR,
 		-- [439] = ENUM_DUNGEONS.AOVH,
 		-- Normal
 		[428] = ENUM_DUNGEONS.NL,
@@ -205,10 +207,10 @@ do
 		[434] = ENUM_DUNGEONS.ARC,
 		[425] = ENUM_DUNGEONS.EOA,
 		[433] = ENUM_DUNGEONS.COS,
-		-- [0] = ENUM_DUNGEONS.CATH,
+		-- [0] = ENUM_DUNGEONS.COEN,
 		-- [0] = ENUM_DUNGEONS.SEAT,
-		-- [0] = ENUM_DUNGEONS.LOWER,
-		-- [0] = ENUM_DUNGEONS.UPPER,
+		-- [0] = ENUM_DUNGEONS.LOWR,
+		-- [0] = ENUM_DUNGEONS.UPPR,
 		-- [429] = ENUM_DUNGEONS.AOVH,
 	}
 
@@ -222,10 +224,10 @@ do
 		[1516] = ENUM_DUNGEONS.ARC,
 		[1456] = ENUM_DUNGEONS.EOA,
 		[1571] = ENUM_DUNGEONS.COS,
-		[1677] = ENUM_DUNGEONS.CATH,
+		[1677] = ENUM_DUNGEONS.COEN,
 		[1753] = ENUM_DUNGEONS.SEAT,
-		[1651] = ENUM_DUNGEONS.LOWER,
-		-- [1651] = ENUM_DUNGEONS.UPPER, -- has separate logic to handle this (we just pick best score out of these two)
+		[1651] = ENUM_DUNGEONS.LOWR,
+		-- [1651] = ENUM_DUNGEONS.UPPR, -- has separate logic to handle this (we just pick best score out of these two)
 	}
 
 	KEYSTONE_INST_TO_DUNGEONID = {
@@ -238,10 +240,10 @@ do
 		[209] = ENUM_DUNGEONS.ARC,
 		[197] = ENUM_DUNGEONS.EOA,
 		[210] = ENUM_DUNGEONS.COS,
-		[233] = ENUM_DUNGEONS.CATH,
+		[233] = ENUM_DUNGEONS.COEN,
 		[239] = ENUM_DUNGEONS.SEAT,
-		[227] = ENUM_DUNGEONS.LOWER,
-		[234] = ENUM_DUNGEONS.UPPER,
+		[227] = ENUM_DUNGEONS.LOWR,
+		[234] = ENUM_DUNGEONS.UPPR,
 	}
 end
 
@@ -274,6 +276,7 @@ local GetRealmSlug
 local GetNameAndRealm
 local GetFaction
 local GetWeeklyAffix
+local GetAverageScore
 do
 	-- get timezone offset between local and UTC+0 time
 	function GetTimezoneOffset(ts)
@@ -324,7 +327,7 @@ do
 		if id then
 			if activityID then
 				local index = LFD_ACTIVITYID_TO_DUNGEONID[activityID]
-					if index then
+				if index then
 					temp.index = index
 					temp.dungeon = CONST_DUNGEONS[index]
 					temp.level = GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0
@@ -425,6 +428,13 @@ do
 		local diff = difftime(timestamp, timestampWeeklyReset)
 		local index = floor(diff / 604800) % #KEYSTONE_AFFIX_SCHEDULE + 1
 		return KEYSTONE_AFFIX_SCHEDULE[index]
+	end
+
+	function GetAverageScore(affix, level)
+		if CONST_AVERAGE_SCORE[affix] and CONST_AVERAGE_SCORE[affix][level] then
+			return CONST_AVERAGE_SCORE[affix][level]
+		end
+		return nil
 	end
 end
 
@@ -752,7 +762,8 @@ do
 			config:CreateOptionToggle(L.ALWAYS_SHOW_EXTENDED_INFO, L.ALWAYS_SHOW_EXTENDED_INFO_DESC, "alwaysExtendTooltip")
 			config:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
 			config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
-	
+			config:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
+
 			config:CreatePadding()
 			config:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
 			config:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
@@ -1148,6 +1159,7 @@ local GetFormattedScore
 local GetFormattedRunCount
 local AppendGameTooltip
 local UpdateAppendedGameTooltip
+local AppendAveragePlayerScore
 do
 	local function sortRoleScores(a, b)
 		return a[2] > b[2]
@@ -1171,7 +1183,7 @@ do
 	end
 
 	-- appends score data to a given tooltip
-	function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex)
+	function AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex, focusOnKeystoneLevel)
 		local profile = GetScore(arg1, nil, forceFaction)
 
 		-- sanity check that the profile exists
@@ -1240,6 +1252,11 @@ do
 					qHighlightStr2 = "+" .. l
 				end
 			end
+
+			if focusOnKeystoneLevel then
+				AppendAveragePlayerScore(tooltip, focusOnKeystoneLevel)
+			end
+
 
 			-- if not, then are we queued for, or hosting a group for a keystone run?
 			if not focusOnDungeonIndex then
@@ -1402,6 +1419,15 @@ do
 		end
 		-- finalize by appending our tooltip on the bottom
 		AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex)
+	end
+
+	function AppendAveragePlayerScore(tooltip, keystoneLevel)
+		if addonConfig.showAverageScore then
+			local averageScore = GetAverageScore(GetWeeklyAffix(), keystoneLevel)
+			if averageScore then
+				tooltip:AddDoubleLine(format(L.RAIDERIO_AVERAGE_PLAYER_SCORE, keystoneLevel), averageScore, 1, 1, 1, 1, 1, GetScoreColor(averageScore))
+			end
+		end
 	end
 end
 
@@ -1626,9 +1652,10 @@ do
 			end
 			-- search results
 			local function SetSearchEntryTooltip(tooltip, resultID, autoAcceptOption)
-				local _, activityID, _, _, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
+				local _, activityID, title, description, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
 				if leaderName then
-					AppendGameTooltip(tooltip, leaderName, false, true, PLAYER_FACTION, LFD_ACTIVITYID_TO_DUNGEONID[activityID])
+					local keystoneLevel = GetKeystoneLevel(title) or GetKeystoneLevel(description) or 0
+					AppendGameTooltip(tooltip, leaderName, false, true, PLAYER_FACTION, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
 				end
 			end
 			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
@@ -2083,6 +2110,9 @@ do
 			end
 			tooltip:AddLine(" ")
 			tooltip:AddDoubleLine(L.RAIDERIO_MP_BASE_SCORE, baseScore, 1, 0.85, 0, 1, 1, 1)
+
+			AppendAveragePlayerScore(tooltip, lvl)
+
 			inst = tonumber(inst)
 			if inst then
 				local index = KEYSTONE_INST_TO_DUNGEONID[inst]
